@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 import numpy as np
 
 from parser.biaffinemodel import BiaffineParser
@@ -115,7 +117,8 @@ if __name__ == '__main__':
                                    device='gpu')
     embeddings_layer = EmbeddingsLayer(words_dict, words_embeddings_matrix, words_dict['<PAD>'])
     embeddings_layer.eval()
-
+    if not os.path.isdir("parser/tempmodels/"):
+        os.mkdir("parser/tempmodels/")
     pickle.dump(hyperparams, open('parser/tempmodels/hyperparams', 'wb'))
     pickle.dump(heads_features_dict, open('parser/tempmodels/heads_features_dict', 'wb'))
     pickle.dump(rels_features_dict, open('parser/tempmodels/rels_features_dict', 'wb'))
