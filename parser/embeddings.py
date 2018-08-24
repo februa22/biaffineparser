@@ -1,20 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-
 import torch
-from torch import nn
+import tensorflow as tf
 
-
-class EmbeddingsLayer(nn.Module):
+#embedding layer with tensorflow
+class EmbeddingsLayer():
+    """
+    Non trainable Embeddings layer
+    :param words_vocab:
+    :param words_embeddings_matrix:
+    :param pad_idx:
+    """
     def __init__(self, words_vocab: dict, words_embeddings_matrix: np.array, pad_idx: int):
-        """
-        Non trainable Embeddings layer
-        :param words_vocab:
-        :param words_embeddings_matrix:
-        :param pad_idx:
-        """
-        super(EmbeddingsLayer, self).__init__()
+        #super(EmbeddingsLayer, self).__init__()
         self.EMBEDDING_SIZE = len(words_embeddings_matrix[0])
         self.words_dict = words_vocab
         self.word_embed = nn.Embedding(
@@ -22,13 +21,8 @@ class EmbeddingsLayer(nn.Module):
             embedding_dim=self.EMBEDDING_SIZE,
             padding_idx=pad_idx,
         )
-        self.word_embed.weight = nn.Parameter(torch.from_numpy(words_embeddings_matrix).type(torch.FloatTensor),
-                                              requires_grad=False)
+        #self.word_embed.weight = nn.Parameter(torch.from_numpy(words_embeddings_matrix).type(torch.FloatTensor), requires_grad=False)
+        self.word_embed.weight = tf.Variable(words_embeddings_matrix, trainable=False)
 
-    def forward(self, sequence: torch.LongTensor):
-        return self.word_embed(torch.from_numpy(sequence).type(torch.LongTensor))
-
-#임베딩 레이어
-class EmbeddingsLayer_tf():
-    def __init__(self, *args, **kwargs):
-            return super().__init__(*args, **kwargs)
+if __name__ == '__main__':
+    exit()
