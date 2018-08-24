@@ -27,3 +27,8 @@ class EmbeddingsLayer(nn.Module):
 
     def forward(self, sequence: torch.LongTensor):
         return self.word_embed(torch.from_numpy(sequence).type(torch.LongTensor))
+
+#임베딩 레이어
+class EmbeddingsLayer_tf():
+    def __init__(self, *args, **kwargs):
+            return super().__init__(*args, **kwargs)
