@@ -36,8 +36,9 @@ class EmbeddingsLayer():
     def __init__(self, words_vocab: dict, words_embeddings_matrix: np.array, pad_idx: int):
         self.EMBEDDING_SIZE = len(words_embeddings_matrix[0])
         self.words_dict = words_vocab
-        self.word_embeddings = tf.get_variable("word_embeddings", [len(self.words_dict), self.EMBEDDING_SIZE])
-        self.embedded_word_ids = tf.nn.embedding_lookup(self.word_embeddings, list(self.words_dict.values()))
+        self.word_embeddings = tf.Variable(words_embeddings_matrix, name="word_embeddings", dtype=tf.float32, trainable=False)
+        self.word_ids = tf.placeholder(tf.int32, name="word_ids")
+        self.embedded_word_ids = tf.nn.embedding_lookup(self.word_embeddings, self.word_ids, name="embedded_word_ids")
         self.word_embeddings_weight = tf.Variable(words_embeddings_matrix, trainable=False)
 
 if __name__ == '__main__':
