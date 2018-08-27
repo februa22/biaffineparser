@@ -7,26 +7,70 @@ import torch
 from torch import nn
 from torch.nn.init import orthogonal_, xavier_uniform_
 
+import tensorflow as tf
+import pdb
+
+# Heads computation
+#s_i_arc = biaffine(h_arc_dep, self.W_arc, h_arc_head, self.device, num_outputs=1, bias_x=True)
+# Labels computation
+#full_label_logits = biaffine(h_label_dep, self.W_label, h_label_head, self.device, num_outputs=self.N_CLASSES, bias_x=True, bias_y=True)
 
 def biaffine(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
 
     batch_size, batch_len, dim = input1.size()
+    
+    # cat(): concatenate tensors
+    # to(): Performs Tensor dtype and/or device conversion.
+    # 왜 3차원에 1로 이루어진 행렬을 더했을까?...
     if bias_x:
         input1 = torch.cat((input1, torch.ones(batch_size, batch_len, 1).to(device)), 2)
     if bias_y:
         input2 = torch.cat((input2, torch.ones(batch_size, batch_len, 1).to(device)), 2)
 
-    nx, ny = dim + bias_x, dim + bias_y
-
-    W = W.contiguous().view(nx, num_outputs * W.size()[-1])
-    lin = torch.matmul(input1.contiguous().view(batch_size * batch_len, nx), W)
-    lin = lin.contiguous().view(batch_size, num_outputs * batch_len, ny)
-    blin = torch.matmul(lin, torch.transpose(input2, 1, 2))
-    blin = blin.contiguous().view(batch_size, batch_len, num_outputs, batch_len)
+    nx = dim + bias_x #501
+    ny = dim + bias_y #501
+    pdb.set_trace()
+    
+    # contiguous(): returns same tensor
+    # view(): returns same tensor with different shape
+    W = W.contiguous().view(nx, num_outputs * W.size()[-1]) # reshape
+    lin = torch.matmul(input1.contiguous().view(batch_size * batch_len, nx), W) # multiplication
+    lin = lin.contiguous().view(batch_size, num_outputs * batch_len, ny) # reshape
+    blin = torch.matmul(lin, torch.transpose(input2, 1, 2)) # multiplication
+    blin = blin.contiguous().view(batch_size, batch_len, num_outputs, batch_len) #reshape
+    
     if num_outputs == 1:
+        #squeeze: Returns a tensor with all the dimensions of input of size 1 removed.
         blin = blin.squeeze(2)
     else:
         blin = blin.transpose(2, 3)
+
+    return blin
+
+#biaffine as tensorflow
+def biaffine_tf(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
+
+    #input의 shape을 받아옴
+    batch_size, batch_len, dim = input1.shape
+
+    if bias_x:
+        input1 = tf.concat((input1, tf.ones(batch_size, batch_len, 1)), axis=2)
+    if bias_y:
+        input2 = tf.concat((input2, tf.ones(batch_size, batch_len, 1)), axis=2)
+
+    nx = dim + bias_x #501
+    ny = dim + bias_y #501
+
+    W = tf.reshape(W, shape=(nx, num_outputs * W.size()[-1]))
+    lin = tf.matmul(tf.reshape(input1, shape=(batch_size * batch_len, nx)), W)
+    lin = tf.reshape(lin, shape=(batch_size, num_outputs * batch_len, ny))
+    blin = tf.matmul(lin, tf.transpose(input2, perm=(1, 2)))
+    blin = tf.reshape(blin, (batch_size, batch_len, num_outputs, batch_len))
+    
+    if num_outputs == 1:
+        blin = tf.squeeze(blin, axis=2)
+    else:
+        blin = tf.transpose(blin, perm=(2,3))
 
     return blin
 
@@ -178,12 +222,12 @@ class BiaffineParser(nn.Module):
         h_label_head = self.activation(h_label_head)
         h_label_head = self.dropout(h_label_head)
 
+        #def biaffine(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
         # Heads computation
         s_i_arc = biaffine(h_arc_dep, self.W_arc, h_arc_head, self.device, num_outputs=1, bias_x=True)
 
         # Labels computation
-        full_label_logits = biaffine(h_label_dep, self.W_label, h_label_head, self.device, num_outputs=self.N_CLASSES,
-                                     bias_x=True, bias_y=True)
+        full_label_logits = biaffine(h_label_dep, self.W_label, h_label_head, self.device, num_outputs=self.N_CLASSES, bias_x=True, bias_y=True)
 
         if self.training:
             gold_heads_t = torch.LongTensor(gold_heads)[:, :max_len].to(self.device)
