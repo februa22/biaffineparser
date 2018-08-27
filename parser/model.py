@@ -3,6 +3,8 @@ from .progress_bar import Progbar
 from . import utils
 
 from sklearn.utils import shuffle
+import tensorflow as tf
+
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
@@ -18,6 +20,8 @@ class Model(object):
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
+        self.word_embedding = word_embedding
+        self.pos_embedding = pos_embedding
         self.build()
 
     def build(self):
@@ -33,16 +37,27 @@ class Model(object):
         self.create_init_op()
     
     def create_placeholders(self):
-        pass
+        # TODO(jongseong): 실제로 모델에 필요한 `placeholder`로 교체
+        self.word_ids = tf.placeholder(tf.int32, shape=[None, None], name="word_ids")
+        self.word_lengths = tf.placeholder(tf.int32, shape=[None, None], name="word_lengths")
 
     def create_embedding_layer(self):
-        pass
+        with tf.variable_scope('embeddings'):
+            _word_embedding = tf.Variable(self.word_embedding, name="_word_embedding", dtype=tf.float32)
+            word_embedding = tf.nn.embedding_lookup(_word_embedding, self.word_ids, name="word_embedding")
+
+            _pos_embedding = tf.Variable(self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
+            pos_embedding = tf.nn.embedding_lookup(_pos_embedding, self.word_ids, name="pos_embedding")
+            
+            self.embeddings = tf.concat([word_embedding, pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
-        pass
-
+        with tf.variable_scope('bi-lstm'):
+            self.output = add_stacked_lstm_layers(self.hparams, self.embeddings, self.word_lengths)
+        
     def create_mlp_layer(self):
-        pass
+        with tf.variable_scope('mlp'):
+            self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(self.hparams, self.output)
 
     def create_biaffine_layer(self):
         pass
@@ -94,3 +109,66 @@ class Model(object):
                     sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=100):
                 break
             break
+
+
+def add_stacked_lstm_layers(hparams, word_embedding, lengths):
+    cell = tf.contrib.rnn.LSTMCell
+    cells_fw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_layers)]
+    cells_bw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_layers)]
+    if hparams.dropout > 0.0:
+        cells_fw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_fw]
+        cells_bw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_bw]
+    outputs, _, _ = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
+        cells_fw=cells_fw,
+        cells_bw=cells_bw,
+        inputs=word_embedding,
+        sequence_length=lengths,
+        dtype=tf.float32,
+        scope="bi-lstm")
+    return outputs
+
+
+def create_weight_and_bias(n_input, n_output):
+    weights = {
+        'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
+        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32),
+    }
+    biases = {
+        'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
+        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
+    }
+    return weights, biases
+
+
+def multilayer_perceptron(x, weights, biases):
+    layer_1 = tf.add(tf.matmul(x, weights['w1']), biases['b1'])
+    layer_1 = tf.nn.relu(layer_1)
+    layer_2 = tf.add(tf.matmul(layer_1, weights['w2']), biases['b2'])
+    layer_2 = tf.nn.relu(layer_2)
+    return layer_2
+
+
+def mlp_with_scope(x, n_input, n_output, scope):
+    with tf.variable_scope(scope):
+        weights, biases = create_weight_and_bias(n_input, n_output)
+        h = multilayer_perceptron(x, weights, biases)
+    return h
+
+
+def mlp_for_arc(hparams, x):
+    h_arc_head = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.arc_head_units, 'arc_head')
+    h_arc_dep = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.arc_dep_units, 'arc_dep')
+    return h_arc_head, h_arc_dep
+
+
+def mlp_for_label(hparams, x):
+    h_label_head = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.label_head_units, 'label_head')
+    h_label_dep = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.label_dep_units, 'label_dep')
+    return h_label_head, h_label_dep
+
+
+def mlp_for_arc_and_label(hparams, x):
+    x = tf.nn.dropout(x, hparams.mlp_dropout)
+    h_arc_head, h_arc_dep = mlp_for_arc(hparams, x)
+    h_label_head, h_label_dep = mlp_for_label(hparams, x)
+    return h_arc_head, h_arc_dep, h_label_head, h_label_dep
