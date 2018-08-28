@@ -6,6 +6,8 @@ from sklearn.utils import shuffle
 from . import utils
 from .progress_bar import Progbar
 
+# for debugging
+import pdb
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
@@ -166,9 +168,9 @@ class Model(object):
 
                 h_arc_head, arc_logits, label_logits = sess.run(
                     [self.h_arc_head, self.arc_logits, self.label_logits], feed_dict=feed_dict)
-                print(np.array(h_arc_head).shape)
-                print(np.array(arc_logits).shape)
-                print(np.array(label_logits).shape)
+                print(f'np.array(h_arc_head).shape={np.array(h_arc_head).shape}')
+                print(f'np.array(arc_logits).shape={np.array(arc_logits).shape}')
+                print(f'np.array(label_logits).shape={np.array(label_logits).shape}')
                 break
             break
 
@@ -245,10 +247,10 @@ def mlp_for_arc_and_label(hparams, x):
 def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
     """ biaffine 연산 레이어 """
     # input의 shape을 받아옴
-    s = tf.shape(input1)
-    batch_size = s[0]
-    batch_len = s[1]
-    dim = s[2]
+    input1_shape = tf.shape(input1)
+    batch_size = input1_shape[0]
+    batch_len = input1_shape[1]
+    dim = input1_shape[2]
 
     if bias_x:
         input1 = tf.concat([input1, tf.ones([batch_size, batch_len, 1])], axis=2)
@@ -258,14 +260,14 @@ def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, b
     nx = dim + bias_x  # 501
     ny = dim + bias_y  # 501
 
-    W = tf.reshape(W, shape=(nx, num_outputs * W.size()[-1]))
+    W = tf.reshape(W, shape=(nx, num_outputs * tf.shape(W)[-1]))
     lin = tf.matmul(tf.reshape(input1, shape=(batch_size * batch_len, nx)), W)
     lin = tf.reshape(lin, shape=(batch_size, num_outputs * batch_len, ny))
-    blin = tf.matmul(lin, tf.transpose(input2, perm=(1, 2)))
+    blin = tf.matmul(lin, tf.transpose(input2, perm=[0,2,1]))
     blin = tf.reshape(blin, (batch_size, batch_len, num_outputs, batch_len))
 
     if num_outputs == 1:
         blin = tf.squeeze(blin, axis=2)
     else:
-        blin = tf.transpose(blin, perm=(2, 3))
+        blin = tf.transpose(blin, perm=[0,1,3,2])
     return blin
