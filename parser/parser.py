@@ -7,6 +7,8 @@ import numpy as np
 from .model import Model
 from . import utils
 
+import pdb
+
 FLAGS = None
 
 
@@ -34,7 +36,9 @@ def add_arguments(parser):
                         help='Path of train dataset')
     parser.add_argument('--dev_filename', type=str,
                         help='Path of dev dataset')
-
+    parser.add_argument('--device', type=str,
+                        help='Device to use')
+    #print(parser.parse_args())
 
 def main(flags):
     print('Loading dataset..')
@@ -75,7 +79,6 @@ def main(flags):
     model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
         word_embedding, pos_embedding)
     model.train(epochs, sentences_indexed, pos_indexed, rels_indexed, heads_padded)
-
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
