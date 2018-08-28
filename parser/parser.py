@@ -13,6 +13,9 @@ FLAGS = None
 
 def add_arguments(parser):
     """ Build ArgumentParser. """
+    parser.register("type", "bool", lambda v: v.lower() == "true")
+
+    # network
     parser.add_argument('--embedding_size', type=int, default=100,
                         help='Embedding size')
     parser.add_argument('--embedding_train_size', type=int, default=100,
@@ -25,19 +28,33 @@ def add_arguments(parser):
                         help='Number of hidden units for MLP of arc')
     parser.add_argument('--label_mlp_units', type=int, default=100,
                         help='Number of hidden units for MLP of label')
-    parser.add_argument('--dropout', type=float, default=.44,
+    parser.add_argument('--dropout', type=float, default=.33,
                         help='Dropout rate')
     parser.add_argument('--embedding_dropout', type=float, default=.33,
                         help='Dropout rate for embedding')
+    parser.add_argument('--mlp_dropout', type=float, default=.33,
+                        help='Dropout rate for MLP')
     parser.add_argument('--num_lstm_layers', type=int, default=3,
                         help='Number of LSTM layers')
+
+    # optimizer
+    parser.add_argument("--num_train_epochs", type=int, default=400,
+                        help="Num epochs to train.")
+
+    # data
     parser.add_argument('--train_filename', type=str,
                         help='Path of train dataset')
     parser.add_argument('--dev_filename', type=str,
                         help='Path of dev dataset')
+
+    # Default settings works well (rarely need to change)
+    parser.add_argument("--batch_size", type=int, default=128,
+                        help="Batch size.")
+
+    # Misc
     parser.add_argument('--device', type=str,
                         help='Device to use')
-    #print(parser.parse_args())
+
 
 def main(flags):
     print('Loading dataset..')
@@ -71,17 +88,17 @@ def main(flags):
     rev_vocab_words = {w: i for i, w in (words_dict.items())}
     rev_vocab_rels = {w: i for i, w in (rels_features_dict.items())}
 
-    epochs = 400
     best_val_loss = 100
     stopcount = 0
 
     model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
         word_embedding, pos_embedding)
-    model.train(epochs, sentences_indexed, pos_indexed, rels_indexed, heads_padded)
+    model.train(sentences_indexed, pos_indexed, rels_indexed, heads_padded)
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)
     FLAGS = argparser.parse_args()
+    print(FLAGS)
     main(FLAGS)
     print('Done')

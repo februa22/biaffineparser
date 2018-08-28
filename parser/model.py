@@ -9,12 +9,14 @@ from .progress_bar import Progbar
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
                  word_embedding, pos_embedding, device='gpu'):
+        print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
         print(f'pos_embedding: {pos_embedding.shape}')
+        print('#'*30)
         self.hparams = hparams
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
@@ -41,8 +43,8 @@ class Model(object):
         # TODO(jongseong): 실제로 모델에 필요한 `placeholder`로 교체
         self.word_ids = tf.placeholder(
             tf.int32, shape=[None, None], name="word_ids")
-        self.word_lengths = tf.placeholder(
-            tf.int32, shape=[None, None], name="word_lengths")
+        self.seq_len = tf.placeholder(
+            tf.int32, shape=[None], name="seq_len")
 
     def create_embedding_layer(self):
         with tf.variable_scope('embeddings'):
@@ -62,10 +64,12 @@ class Model(object):
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
             self.output = add_stacked_lstm_layers(
-                self.hparams, self.embeddings, self.word_lengths)
+                self.hparams, self.embeddings, self.seq_len)
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
+            s = tf.shape(self.output)
+            self.output = tf.reshape(self.output, [-1, s[-1]])
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
 
@@ -92,7 +96,13 @@ class Model(object):
     def create_init_op(self):
         pass
 
-    def train(self, epochs, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
+    def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
+        print('#'*30)
+        print(f'sentences_indexed {sentences_indexed.shape}')
+        print(f'pos_indexed {pos_indexed.shape}')
+        print(f'rels_indexed {rels_indexed.shape}')
+        print(f'heads_padded {heads_padded.shape}')
+        print('#'*30)
         val_sentences, val_pos, val_rels, val_heads, val_maxlen = utils.get_dataset_multiindex(
             self.hparams.dev_filename)
 
@@ -105,7 +115,7 @@ class Model(object):
         val_heads_padded = utils.get_indexed_sequences(
             val_heads, self.heads_vocab_table, val_maxlen, just_pad=True)
 
-        for epoch in range(epochs):
+        for epoch in range(self.hparams.num_train_epochs):
             model_loss = []
             heads_acc = []
             rels_acc = []
@@ -121,15 +131,15 @@ class Model(object):
                                                                                  rels_indexed,
                                                                                  heads_padded)
             for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-                    sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=100):
+                    sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=self.hparams.batch_size):
                 break
             break
 
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths):
     cell = tf.contrib.rnn.LSTMCell
-    cells_fw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_layers)]
-    cells_bw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_layers)]
+    cells_fw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
+    cells_bw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
     if hparams.dropout > 0.0:
         cells_fw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_fw]
         cells_bw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_bw]
@@ -172,17 +182,17 @@ def mlp_with_scope(x, n_input, n_output, scope):
 
 def mlp_for_arc(hparams, x):
     h_arc_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_sizem, hparams.arc_head_units, 'arc_head')
+        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, 'arc_head')
     h_arc_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_sizem, hparams.arc_dep_units, 'arc_dep')
+        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, 'arc_dep')
     return h_arc_head, h_arc_dep
 
 
 def mlp_for_label(hparams, x):
     h_label_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_sizem, hparams.label_head_units, 'label_head')
+        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, 'label_head')
     h_label_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_sizem, hparams.label_dep_units, 'label_dep')
+        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, 'label_dep')
     return h_label_head, h_label_dep
 
 
