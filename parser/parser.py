@@ -11,7 +11,6 @@ import pdb
 
 FLAGS = None
 
-
 def add_arguments(parser):
     """ Build ArgumentParser. """
     parser.add_argument('--embedding_size', type=int, default=100,

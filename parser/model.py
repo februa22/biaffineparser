@@ -22,6 +22,7 @@ class Model(object):
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
         self.pos_embedding = pos_embedding
+        self.n_classes = len(rels_vocab_table)
         self.build()
 
     def build(self):
@@ -70,8 +71,10 @@ class Model(object):
 
     def create_biaffine_layer(self):
         # adding arc and label logits
-        #arc_logits = biaffine(h_arc_dep, self.W_arc, h_arc_head, self.device, num_outputs=1, bias_x=True)
-        #label_logits = biaffine(h_label_dep, self.W_label, h_label_head, self.device, num_outputs=self.N_CLASSES, bias_x=True, bias_y=True)
+        #W_ars = tf.Variable()
+        #W_label = tf.Variable()
+        arc_logits = add_biaffine_layer(self.h_arc_dep, self.W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True)
+        label_logits = add_biaffine_layer(self.h_label_dep, self.W_label, self.h_label_head, self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
         pass
 
     def create_logits_op(self):
