@@ -245,12 +245,15 @@ def mlp_for_arc_and_label(hparams, x):
 def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
     """ biaffine 연산 레이어 """
     # input의 shape을 받아옴
-    batch_size, batch_len, dim = input1.shape
+    s = tf.shape(input1)
+    batch_size = s[0]
+    batch_len = s[1]
+    dim = s[2]
 
     if bias_x:
-        input1 = tf.concat((input1, tf.ones(batch_size, batch_len, 1)), axis=2)
+        input1 = tf.concat([input1, tf.ones([batch_size, batch_len, 1])], axis=2)
     if bias_y:
-        input2 = tf.concat((input2, tf.ones(batch_size, batch_len, 1)), axis=2)
+        input2 = tf.concat([input2, tf.ones([batch_size, batch_len, 1])], axis=2)
 
     nx = dim + bias_x  # 501
     ny = dim + bias_y  # 501
