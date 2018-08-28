@@ -9,12 +9,14 @@ from .progress_bar import Progbar
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
                  word_embedding, pos_embedding, device='gpu'):
+        print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
         print(f'pos_embedding: {pos_embedding.shape}')
+        print('#'*30)
         self.hparams = hparams
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
@@ -91,9 +93,8 @@ class Model(object):
     def create_init_op(self):
         pass
 
-    def train(self, epochs, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
+    def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
         print('#'*30)
-        print(f'epochs {epochs}')
         print(f'sentences_indexed {sentences_indexed.shape}')
         print(f'pos_indexed {pos_indexed.shape}')
         print(f'rels_indexed {rels_indexed.shape}')
@@ -111,7 +112,7 @@ class Model(object):
         val_heads_padded = utils.get_indexed_sequences(
             val_heads, self.heads_vocab_table, val_maxlen, just_pad=True)
 
-        for epoch in range(epochs):
+        for epoch in range(self.hparams.num_train_epochs):
             model_loss = []
             heads_acc = []
             rels_acc = []
@@ -127,7 +128,7 @@ class Model(object):
                                                                                  rels_indexed,
                                                                                  heads_padded)
             for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-                    sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=100):
+                    sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=self.hparams.batch_size):
                 break
             break
 
