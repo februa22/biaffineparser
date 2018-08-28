@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-from .progress_bar import Progbar
-from . import utils
-
-from sklearn.utils import shuffle
 import tensorflow as tf
+from sklearn.utils import shuffle
+
+from . import utils
+from .progress_bar import Progbar
 
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
-        word_embedding, pos_embedding, device='gpu'):
+                 word_embedding, pos_embedding, device='gpu'):
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
@@ -35,31 +35,43 @@ class Model(object):
         self.create_loss_op()
         self.create_train_op()
         self.create_init_op()
-    
+
     def create_placeholders(self):
         # TODO(jongseong): 실제로 모델에 필요한 `placeholder`로 교체
-        self.word_ids = tf.placeholder(tf.int32, shape=[None, None], name="word_ids")
-        self.word_lengths = tf.placeholder(tf.int32, shape=[None, None], name="word_lengths")
+        self.word_ids = tf.placeholder(
+            tf.int32, shape=[None, None], name="word_ids")
+        self.word_lengths = tf.placeholder(
+            tf.int32, shape=[None, None], name="word_lengths")
 
     def create_embedding_layer(self):
         with tf.variable_scope('embeddings'):
-            _word_embedding = tf.Variable(self.word_embedding, name="_word_embedding", dtype=tf.float32)
-            word_embedding = tf.nn.embedding_lookup(_word_embedding, self.word_ids, name="word_embedding")
+            _word_embedding = tf.Variable(
+                self.word_embedding, name="_word_embedding", dtype=tf.float32)
+            word_embedding = tf.nn.embedding_lookup(
+                _word_embedding, self.word_ids, name="word_embedding")
 
-            _pos_embedding = tf.Variable(self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
-            pos_embedding = tf.nn.embedding_lookup(_pos_embedding, self.word_ids, name="pos_embedding")
-            
-            self.embeddings = tf.concat([word_embedding, pos_embedding], axis=-1)
+            _pos_embedding = tf.Variable(
+                self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
+            pos_embedding = tf.nn.embedding_lookup(
+                _pos_embedding, self.word_ids, name="pos_embedding")
+
+            self.embeddings = tf.concat(
+                [word_embedding, pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
-            self.output = add_stacked_lstm_layers(self.hparams, self.embeddings, self.word_lengths)
-        
+            self.output = add_stacked_lstm_layers(
+                self.hparams, self.embeddings, self.word_lengths)
+
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
-            self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(self.hparams, self.output)
+            self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
+                self.hparams, self.output)
 
     def create_biaffine_layer(self):
+        # adding arc and label logits
+        #arc_logits = biaffine(h_arc_dep, self.W_arc, h_arc_head, self.device, num_outputs=1, bias_x=True)
+        #label_logits = biaffine(h_label_dep, self.W_label, h_label_head, self.device, num_outputs=self.N_CLASSES, bias_x=True, bias_y=True)
         pass
 
     def create_logits_op(self):
@@ -103,8 +115,8 @@ class Model(object):
             # reset progbar each epoch
             progbar = Progbar(len(sentences_indexed))
             sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(sentences_indexed, pos_indexed,
-                                                                                rels_indexed,
-                                                                                heads_padded)
+                                                                                 rels_indexed,
+                                                                                 heads_padded)
             for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                     sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=100):
                 break
@@ -156,14 +168,18 @@ def mlp_with_scope(x, n_input, n_output, scope):
 
 
 def mlp_for_arc(hparams, x):
-    h_arc_head = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.arc_head_units, 'arc_head')
-    h_arc_dep = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.arc_dep_units, 'arc_dep')
+    h_arc_head = mlp_with_scope(
+        x, 2*hparams.lstm_hidden_sizem, hparams.arc_head_units, 'arc_head')
+    h_arc_dep = mlp_with_scope(
+        x, 2*hparams.lstm_hidden_sizem, hparams.arc_dep_units, 'arc_dep')
     return h_arc_head, h_arc_dep
 
 
 def mlp_for_label(hparams, x):
-    h_label_head = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.label_head_units, 'label_head')
-    h_label_dep = mlp_with_scope(x, 2*hparams.lstm_hidden_sizem, hparams.label_dep_units, 'label_dep')
+    h_label_head = mlp_with_scope(
+        x, 2*hparams.lstm_hidden_sizem, hparams.label_head_units, 'label_head')
+    h_label_dep = mlp_with_scope(
+        x, 2*hparams.lstm_hidden_sizem, hparams.label_dep_units, 'label_dep')
     return h_label_head, h_label_dep
 
 
@@ -172,3 +188,29 @@ def mlp_for_arc_and_label(hparams, x):
     h_arc_head, h_arc_dep = mlp_for_arc(hparams, x)
     h_label_head, h_label_dep = mlp_for_label(hparams, x)
     return h_arc_head, h_arc_dep, h_label_head, h_label_dep
+
+
+def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, bias_y=False):
+    """ biaffine 연산 레이어 """
+    # input의 shape을 받아옴
+    batch_size, batch_len, dim = input1.shape
+
+    if bias_x:
+        input1 = tf.concat((input1, tf.ones(batch_size, batch_len, 1)), axis=2)
+    if bias_y:
+        input2 = tf.concat((input2, tf.ones(batch_size, batch_len, 1)), axis=2)
+
+    nx = dim + bias_x  # 501
+    ny = dim + bias_y  # 501
+
+    W = tf.reshape(W, shape=(nx, num_outputs * W.size()[-1]))
+    lin = tf.matmul(tf.reshape(input1, shape=(batch_size * batch_len, nx)), W)
+    lin = tf.reshape(lin, shape=(batch_size, num_outputs * batch_len, ny))
+    blin = tf.matmul(lin, tf.transpose(input2, perm=(1, 2)))
+    blin = tf.reshape(blin, (batch_size, batch_len, num_outputs, batch_len))
+
+    if num_outputs == 1:
+        blin = tf.squeeze(blin, axis=2)
+    else:
+        blin = tf.transpose(blin, perm=(2, 3))
+    return blin
