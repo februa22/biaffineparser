@@ -26,10 +26,12 @@ def add_arguments(parser):
                         help='Number of hidden units for MLP of arc')
     parser.add_argument('--label_mlp_units', type=int, default=100,
                         help='Number of hidden units for MLP of label')
-    parser.add_argument('--dropout', type=float, default=.44,
+    parser.add_argument('--dropout', type=float, default=.33,
                         help='Dropout rate')
     parser.add_argument('--embedding_dropout', type=float, default=.33,
                         help='Dropout rate for embedding')
+    parser.add_argument('--mlp_dropout', type=float, default=.33,
+                        help='Dropout rate for MLP')
     parser.add_argument('--num_lstm_layers', type=int, default=3,
                         help='Number of LSTM layers')
     parser.add_argument('--train_filename', type=str,
