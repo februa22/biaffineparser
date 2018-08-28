@@ -73,13 +73,20 @@ class Model(object):
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
 
+    # adding arc and label logits
     def create_biaffine_layer(self):
-        # adding arc and label logits
-        #W_ars = tf.Variable()
-        #W_label = tf.Variable()
-        arc_logits = add_biaffine_layer(self.h_arc_dep, self.W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True)
-        label_logits = add_biaffine_layer(self.h_label_dep, self.W_label, self.h_label_head, self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
-        pass
+        # logit for arc
+        with tf.variable_scope('arc'):
+            W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
+                                    dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            self.arc_logits = add_biaffine_layer(
+                self.h_arc_dep, W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+        # logit for label
+        with tf.variable_scope('label'):
+            W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
+                                                  self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            self.label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
+                                                   self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
 
     def create_logits_op(self):
         pass
@@ -138,8 +145,10 @@ class Model(object):
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths):
     cell = tf.contrib.rnn.LSTMCell
-    cells_fw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
-    cells_bw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
+    cells_fw = [cell(hparams.lstm_hidden_size)
+                for _ in range(hparams.num_lstm_layers)]
+    cells_bw = [cell(hparams.lstm_hidden_size)
+                for _ in range(hparams.num_lstm_layers)]
     if hparams.dropout > 0.0:
         cells_fw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_fw]
         cells_bw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_bw]
