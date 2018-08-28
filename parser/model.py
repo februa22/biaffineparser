@@ -9,7 +9,7 @@ from .progress_bar import Progbar
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
-                 word_embedding, pos_embedding, device='gpu'):
+                 word_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
@@ -42,7 +42,6 @@ class Model(object):
         self.create_train_op()
 
     def create_placeholders(self):
-        # TODO(jongseong): 실제로 모델에 필요한 `placeholder`로 교체
         self.word_ids = tf.placeholder(
             tf.int32, shape=[None, None], name='word_ids')
         self.pos_ids = tf.placeholder(
@@ -74,12 +73,17 @@ class Model(object):
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
-            s = tf.shape(self.output)
-            self.output = tf.reshape(self.output, [-1, s[-1]])
+            self.output = tf.reshape(self.output, [-1, 2*self.hparams.lstm_hidden_size])
             # MLP
-            #   h_arc_head: [1, 20480, 500]
+            #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
+            # Reshape
+            #   h_arc_head: [batch_size, seq_len, dim]
+            self.h_arc_head = tf.reshape(self.h_arc_head, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+            self.h_arc_dep = tf.reshape(self.h_arc_dep, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+            self.h_label_head = tf.reshape(self.h_label_head, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
+            self.h_label_dep = tf.reshape(self.h_label_dep, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
 
     # adding arc and label logits
     def create_biaffine_layer(self):
@@ -160,7 +164,11 @@ class Model(object):
                     self.sequence_length: sequence_length,
                 }
 
-                h_arc_head = sess.run([self.h_arc_head], feed_dict=feed_dict)
+                h_arc_head, arc_logits, label_logits = sess.run(
+                    [self.h_arc_head, self.arc_logits, self.label_logits], feed_dict=feed_dict)
+                print(np.array(h_arc_head).shape)
+                print(np.array(arc_logits).shape)
+                print(np.array(label_logits).shape)
                 break
             break
 
