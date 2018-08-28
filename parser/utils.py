@@ -181,3 +181,7 @@ def init_lstm_weights(lstm, initializer=orthogonal_):
         for p in layer_p:
             if 'weight' in p:
                 initializer(lstm.__getattr__(p))
+
+
+def get_sequence_length(data, pad_id, axis=1):
+    return np.sum(np.not_equal(data, pad_id), axis=axis)

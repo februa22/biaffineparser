@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
 
@@ -24,7 +25,9 @@ class Model(object):
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
         self.pos_embedding = pos_embedding
+        
         self.build()
+        self.initializer = tf.global_variables_initializer()
 
     def build(self):
         self.create_placeholders()
@@ -36,14 +39,17 @@ class Model(object):
         self.create_pred_op()
         self.create_loss_op()
         self.create_train_op()
-        self.create_init_op()
 
     def create_placeholders(self):
         # TODO(jongseong): 실제로 모델에 필요한 `placeholder`로 교체
         self.word_ids = tf.placeholder(
-            tf.int32, shape=[None, None], name="word_ids")
-        self.seq_len = tf.placeholder(
-            tf.int32, shape=[None], name="seq_len")
+            tf.int32, shape=[None, None], name='word_ids')
+        self.pos_ids = tf.placeholder(
+            tf.int32, shape=[None, None], name='pos_ids')
+        self.head_ids = tf.placeholder(
+            tf.int32, shape=[None, None], name='head_ids')
+        self.sequence_length = tf.placeholder(
+            tf.int32, shape=[None], name='sequence_length')
 
     def create_embedding_layer(self):
         with tf.variable_scope('embeddings'):
@@ -55,7 +61,7 @@ class Model(object):
             _pos_embedding = tf.Variable(
                 self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
-                _pos_embedding, self.word_ids, name="pos_embedding")
+                _pos_embedding, self.pos_ids, name="pos_embedding")
 
             self.embeddings = tf.concat(
                 [word_embedding, pos_embedding], axis=-1)
@@ -63,12 +69,14 @@ class Model(object):
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
             self.output = add_stacked_lstm_layers(
-                self.hparams, self.embeddings, self.seq_len)
+                self.hparams, self.embeddings, self.sequence_length)
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
             s = tf.shape(self.output)
             self.output = tf.reshape(self.output, [-1, s[-1]])
+            # MLP
+            #   h_arc_head: [1, 20480, 500]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
 
@@ -90,9 +98,6 @@ class Model(object):
     def create_train_op(self):
         pass
 
-    def create_init_op(self):
-        pass
-
     def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
         print('#'*30)
         print(f'sentences_indexed {sentences_indexed.shape}')
@@ -112,6 +117,13 @@ class Model(object):
         val_heads_padded = utils.get_indexed_sequences(
             val_heads, self.heads_vocab_table, val_maxlen, just_pad=True)
 
+        config_proto = tf.ConfigProto(
+            log_device_placement=False,
+            allow_soft_placement=True)
+        config_proto.gpu_options.allow_growth = True
+        sess = tf.Session(config=config_proto)
+        sess.run(self.initializer)
+
         for epoch in range(self.hparams.num_train_epochs):
             model_loss = []
             heads_acc = []
@@ -124,19 +136,31 @@ class Model(object):
             test_rels_acc = []
             # reset progbar each epoch
             progbar = Progbar(len(sentences_indexed))
-            sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(sentences_indexed, pos_indexed,
-                                                                                 rels_indexed,
-                                                                                 heads_padded)
+            sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
+                sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
             for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                     sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=self.hparams.batch_size):
+                sequence_length = utils.get_sequence_length(
+                    sentences_indexed_batch, self.word_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+                
+                feed_dict = {
+                    self.word_ids: sentences_indexed_batch,
+                    self.pos_ids: pos_indexed_batch,
+                    self.head_ids: heads_indexed_batch,
+                    self.sequence_length: sequence_length,
+                }
+
+                h_arc_head = sess.run([self.h_arc_head], feed_dict=feed_dict)
                 break
             break
 
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths):
     cell = tf.contrib.rnn.LSTMCell
-    cells_fw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
-    cells_bw = [cell(hparams.lstm_hidden_size) for _ in range(hparams.num_lstm_layers)]
+    cells_fw = [cell(hparams.lstm_hidden_size)
+                for _ in range(hparams.num_lstm_layers)]
+    cells_bw = [cell(hparams.lstm_hidden_size)
+                for _ in range(hparams.num_lstm_layers)]
     if hparams.dropout > 0.0:
         cells_fw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_fw]
         cells_bw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_bw]
