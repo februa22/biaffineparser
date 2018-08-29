@@ -8,6 +8,7 @@ from .progress_bar import Progbar
 
 # for debugging
 import pdb
+from tensorflow.python import debug as tf_debug
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
@@ -99,10 +100,11 @@ class Model(object):
                                                   self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
             self.label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
-
+    # compute for loss
     def create_loss_op(self):
         pass
 
+    # compute for gradient descent
     def create_train_op(self):
         pass
 
@@ -130,6 +132,10 @@ class Model(object):
             allow_soft_placement=True)
         config_proto.gpu_options.allow_growth = True
         sess = tf.Session(config=config_proto)
+        # use debug mode if debug is Trues
+        print(f"self.hparams.debug={self.hparams.debug}")
+        if self.hparams.debug:
+            sess = tf_debug.LocalCLIDebugWrapperSession(sess)
         sess.run(self.initializer)
 
         for epoch in range(self.hparams.num_train_epochs):

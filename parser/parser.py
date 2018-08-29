@@ -11,9 +11,11 @@ import pdb
 
 FLAGS = None
 
+
 def add_arguments(parser):
     """ Build ArgumentParser. """
     parser.register("type", "bool", lambda v: v.lower() == "true")
+    #parser.register("type", "bool", lambda v: v.lower() == "false")
 
     # network
     parser.add_argument('--embedding_size', type=int, default=100,
@@ -55,6 +57,19 @@ def add_arguments(parser):
     parser.add_argument('--device', type=str,
                         help='Device to use')
 
+    # Debug
+    parser.add_argument('--debug', type=str2bool,
+                        help='Use debugger to track down bad values during training', default=True)
+
+# for parsing bool values
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 def main(flags):
     print('Loading dataset..')
@@ -92,8 +107,9 @@ def main(flags):
     stopcount = 0
 
     model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
-        word_embedding, pos_embedding)
+                  word_embedding, pos_embedding)
     model.train(sentences_indexed, pos_indexed, rels_indexed, heads_padded)
+
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
