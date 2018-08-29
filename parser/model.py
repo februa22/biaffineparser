@@ -132,8 +132,7 @@ class Model(object):
             allow_soft_placement=True)
         config_proto.gpu_options.allow_growth = True
         sess = tf.Session(config=config_proto)
-        # use debug mode if debug is Trues
-        print(f"self.hparams.debug={self.hparams.debug}")
+        # use debug mode if debug is True
         if self.hparams.debug:
             sess = tf_debug.LocalCLIDebugWrapperSession(sess)
         sess.run(self.initializer)
