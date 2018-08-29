@@ -38,8 +38,6 @@ class Model(object):
         self.create_lstm_layer()
         self.create_mlp_layer()
         self.create_biaffine_layer()
-        self.create_logits_op()
-        self.create_pred_op()
         self.create_loss_op()
         self.create_train_op()
 
@@ -87,8 +85,8 @@ class Model(object):
             self.h_label_head = tf.reshape(self.h_label_head, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
             self.h_label_dep = tf.reshape(self.h_label_dep, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
 
-    # adding arc and label logits
     def create_biaffine_layer(self):
+        """ adding arc and label logits """
         # logit for arc
         with tf.variable_scope('arc'):
             W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
@@ -101,12 +99,6 @@ class Model(object):
                                                   self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
             self.label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
-
-    def create_logits_op(self):
-        pass
-
-    def create_pred_op(self):
-        pass
 
     def create_loss_op(self):
         pass
