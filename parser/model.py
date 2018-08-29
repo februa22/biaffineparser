@@ -10,6 +10,7 @@ from .progress_bar import Progbar
 import pdb
 from tensorflow.python import debug as tf_debug
 
+
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
                  word_embedding, pos_embedding):
@@ -22,6 +23,8 @@ class Model(object):
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.hparams = hparams
+        # print(f"hparams={vars(self.hparams)}")
+        # exit()
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
@@ -29,7 +32,12 @@ class Model(object):
         self.word_embedding = word_embedding
         self.pos_embedding = pos_embedding
         self.n_classes = len(rels_vocab_table)
-        
+
+        self.head_pad_id = tf.constant(
+            heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+        self.rel_pad_id = tf.constant(
+            rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+
         self.build()
         self.initializer = tf.global_variables_initializer()
 
@@ -41,6 +49,7 @@ class Model(object):
         self.create_biaffine_layer()
         self.create_loss_op()
         self.create_train_op()
+        self.create_uas_op()
 
     def create_placeholders(self):
         self.word_ids = tf.placeholder(
@@ -49,6 +58,8 @@ class Model(object):
             tf.int32, shape=[None, None], name='pos_ids')
         self.head_ids = tf.placeholder(
             tf.int32, shape=[None, None], name='head_ids')
+        self.rel_ids = tf.placeholder(
+            tf.int32, shape=[None, None], name='rel_ids')
         self.sequence_length = tf.placeholder(
             tf.int32, shape=[None], name='sequence_length')
 
@@ -74,39 +85,75 @@ class Model(object):
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
-            self.output = tf.reshape(self.output, [-1, 2*self.hparams.lstm_hidden_size])
+            self.output = tf.reshape(
+                self.output, [-1, 2*self.hparams.lstm_hidden_size])
             # MLP
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim]
-            self.h_arc_head = tf.reshape(self.h_arc_head, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
-            self.h_arc_dep = tf.reshape(self.h_arc_dep, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
-            self.h_label_head = tf.reshape(self.h_label_head, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
-            self.h_label_dep = tf.reshape(self.h_label_dep, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
+            self.h_arc_head = tf.reshape(
+                self.h_arc_head, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+            self.h_arc_dep = tf.reshape(
+                self.h_arc_dep, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+            self.h_label_head = tf.reshape(
+                self.h_label_head, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
+            self.h_label_dep = tf.reshape(
+                self.h_label_dep, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
 
     def create_biaffine_layer(self):
         """ adding arc and label logits """
-        # logit for arc
+        # logit for arc and label
         with tf.variable_scope('arc'):
             W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
                                     dtype=tf.float32, initializer=tf.orthogonal_initializer)
             self.arc_logits = add_biaffine_layer(
                 self.h_arc_dep, W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
-        # logit for label
+
         with tf.variable_scope('label'):
             W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
                                                   self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
-            self.label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
+            full_label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
-    # compute for loss
+            
+            # turn off the padding tensor to false
+            gold_heads = self.head_ids
+            mask = tf.cast(tf.not_equal(gold_heads, self.head_pad_id), dtype=tf.int32)
+            pred_arcs = tf.multiply(gold_heads, mask) #conver to zero for padding values
+
+            # Gather label logits from predicted or gold heads
+            pred_arcs = tf.expand_dims(pred_arcs, 2) #[batch, sent_len, 1]
+            pred_arcs = tf.expand_dims(pred_arcs, 3) #[batch, sent_len, 1, 1]
+            pred_arcs = tf.tile(pred_arcs, [1, 1, 1, tf.shape(full_label_logits)[-1]]) # [batch, sent_len, 1, n_labels]
+            selected_label_logits = tf.gather(tf.reshape(full_label_logits, [-1]), axis=0, indices=tf.reshape(pred_arcs, [-1])) # [batch, n_labels, 1, sent_len]
+            selected_label_logits = tf.reshape(selected_label_logits, [tf.shape(full_label_logits)[0], tf.shape(full_label_logits)[1], 1, tf.shape(full_label_logits)[-1]]) # [batch, sent_len, 1, n_labels]
+            selected_label_logits = tf.squeeze(selected_label_logits, 2) # [batch, n_labels, sent_len]
+            self.label_logits = selected_label_logits
+
+    # loss logit
     def create_loss_op(self):
-        pass
+        # loss_heads, heads_bar = loss_acc(biaffinemodel, logits, heads_indexed_batch, heads_bar, batch_lens,max_len_batch, 'heads')
+        # loss_rels, rels_bar = loss_acc(biaffinemodel, labels_logits, rels_indexed_batch, rels_bar, batch_lens, max_len_batch, 'rels')
+        # total_loss = loss_heads + loss_rels
+        self.total_loss = 0
 
     # compute for gradient descent
     def create_train_op(self):
         pass
+
+    def create_uas_op(self):
+        """ UAS"""
+        with tf.variable_scope('uas'):
+            # [True, True, False, False]
+            mask = tf.not_equal(self.head_ids[:, 1:], self.head_pad_id)
+            preds = tf.argmax(self.arc_logits, axis=-1,
+                              output_type=tf.int32)  # [128, 160]
+            preds_equals = tf.equal(
+                tf.boolean_mask(preds[:, 1:], mask),  # [2, 3, 4, 1]
+                tf.boolean_mask(self.head_ids[:, 1:], mask))  # [1, 3, 4, 1] [False, True, True, True]
+            self.uas = tf.reduce_mean(
+                tf.cast(preds_equals, tf.int32))  # [0, 1, 1, 1] 3/ 4
 
     def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
         print('#'*30)
@@ -155,19 +202,22 @@ class Model(object):
                     sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=self.hparams.batch_size):
                 sequence_length = utils.get_sequence_length(
                     sentences_indexed_batch, self.word_vocab_table[utils.GLOBAL_PAD_SYMBOL])
-                
+
                 feed_dict = {
                     self.word_ids: sentences_indexed_batch,
                     self.pos_ids: pos_indexed_batch,
                     self.head_ids: heads_indexed_batch,
+                    self.rel_ids: rels_indexed_batch,
                     self.sequence_length: sequence_length,
                 }
 
-                h_arc_head, arc_logits, label_logits = sess.run(
-                    [self.h_arc_head, self.arc_logits, self.label_logits], feed_dict=feed_dict)
+                h_arc_head, arc_logits, label_logits, uas = sess.run(
+                    [self.h_arc_head, self.arc_logits, self.label_logits, self.uas], feed_dict=feed_dict)
                 print(f'np.array(h_arc_head).shape={np.array(h_arc_head).shape}')
                 print(f'np.array(arc_logits).shape={np.array(arc_logits).shape}')
                 print(f'np.array(label_logits).shape={np.array(label_logits).shape}')
+                #print(f'np.array(label_logits)={np.array(label_logits)}')
+                print(f'uas={uas}')
                 break
             break
 
@@ -186,8 +236,7 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths):
         cells_bw=cells_bw,
         inputs=word_embedding,
         sequence_length=lengths,
-        dtype=tf.float32,
-        scope="bi-lstm")
+        dtype=tf.float32)
     return outputs
 
 
@@ -250,9 +299,11 @@ def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, b
     dim = input1_shape[2]
 
     if bias_x:
-        input1 = tf.concat([input1, tf.ones([batch_size, batch_len, 1])], axis=2)
+        input1 = tf.concat(
+            [input1, tf.ones([batch_size, batch_len, 1])], axis=2)
     if bias_y:
-        input2 = tf.concat([input2, tf.ones([batch_size, batch_len, 1])], axis=2)
+        input2 = tf.concat(
+            [input2, tf.ones([batch_size, batch_len, 1])], axis=2)
 
     nx = dim + bias_x  # 501
     ny = dim + bias_y  # 501
@@ -260,11 +311,11 @@ def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, b
     W = tf.reshape(W, shape=(nx, num_outputs * tf.shape(W)[-1]))
     lin = tf.matmul(tf.reshape(input1, shape=(batch_size * batch_len, nx)), W)
     lin = tf.reshape(lin, shape=(batch_size, num_outputs * batch_len, ny))
-    blin = tf.matmul(lin, tf.transpose(input2, perm=[0,2,1]))
+    blin = tf.matmul(lin, tf.transpose(input2, perm=[0, 2, 1]))
     blin = tf.reshape(blin, (batch_size, batch_len, num_outputs, batch_len))
 
     if num_outputs == 1:
         blin = tf.squeeze(blin, axis=2)
     else:
-        blin = tf.transpose(blin, perm=[0,1,3,2])
+        blin = tf.transpose(blin, perm=[0, 1, 3, 2])
     return blin
