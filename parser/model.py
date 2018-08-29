@@ -30,6 +30,9 @@ class Model(object):
         self.pos_embedding = pos_embedding
         self.n_classes = len(rels_vocab_table)
         
+        self.head_pad_id = tf.constant(heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+        self.rel_pad_id = tf.constant(rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+        
         self.build()
         self.initializer = tf.global_variables_initializer()
 
@@ -41,6 +44,7 @@ class Model(object):
         self.create_biaffine_layer()
         self.create_loss_op()
         self.create_train_op()
+        self.create_uas_op()
 
     def create_placeholders(self):
         self.word_ids = tf.placeholder(
@@ -49,6 +53,8 @@ class Model(object):
             tf.int32, shape=[None, None], name='pos_ids')
         self.head_ids = tf.placeholder(
             tf.int32, shape=[None, None], name='head_ids')
+        self.rel_ids = tf.placeholder(
+            tf.int32, shape=[None, None], name='rel_ids')
         self.sequence_length = tf.placeholder(
             tf.int32, shape=[None], name='sequence_length')
 
@@ -108,6 +114,16 @@ class Model(object):
     def create_train_op(self):
         pass
 
+    def create_uas_op(self):
+        """ UAS"""
+        with tf.variable_scope('uas'):
+            mask = tf.not_equal(self.head_ids[:, 1:], self.head_pad_id)
+            preds = tf.argmax(self.arc_logits, axis=-1, output_type=tf.int32)
+            preds_equals = tf.equal(
+                tf.boolean_mask(preds[:, 1:], mask),
+                tf.boolean_mask(self.head_ids[:, 1:], mask))
+            self.uas = tf.reduce_mean(tf.cast(preds_equals, tf.int32))
+
     def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
         print('#'*30)
         print(f'sentences_indexed {sentences_indexed.shape}')
@@ -160,14 +176,16 @@ class Model(object):
                     self.word_ids: sentences_indexed_batch,
                     self.pos_ids: pos_indexed_batch,
                     self.head_ids: heads_indexed_batch,
+                    self.rel_ids: rels_indexed_batch,
                     self.sequence_length: sequence_length,
                 }
 
-                h_arc_head, arc_logits, label_logits = sess.run(
-                    [self.h_arc_head, self.arc_logits, self.label_logits], feed_dict=feed_dict)
+                h_arc_head, arc_logits, label_logits, uas = sess.run(
+                    [self.h_arc_head, self.arc_logits, self.label_logits, self.uas], feed_dict=feed_dict)
                 print(f'np.array(h_arc_head).shape={np.array(h_arc_head).shape}')
                 print(f'np.array(arc_logits).shape={np.array(arc_logits).shape}')
                 print(f'np.array(label_logits).shape={np.array(label_logits).shape}')
+                print(f'uas={uas}')
                 break
             break
 
@@ -186,8 +204,7 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths):
         cells_bw=cells_bw,
         inputs=word_embedding,
         sequence_length=lengths,
-        dtype=tf.float32,
-        scope="bi-lstm")
+        dtype=tf.float32)
     return outputs
 
 
