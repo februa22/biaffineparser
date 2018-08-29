@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
+import pdb
+
 import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
+from tensorflow.python import debug as tf_debug
 
 from . import utils
 from .progress_bar import Progbar
 
-# for debugging
-import pdb
-from tensorflow.python import debug as tf_debug
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
@@ -32,6 +32,7 @@ class Model(object):
         
         self.head_pad_id = tf.constant(heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
         self.rel_pad_id = tf.constant(rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+        self.global_step = tf.Variable(0, trainable=False, name='global_step')
         
         self.build()
         self.initializer = tf.global_variables_initializer()
@@ -108,6 +109,7 @@ class Model(object):
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
     # compute for loss
     def create_loss_op(self):
+        # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
         pass
 
     # compute for gradient descent
@@ -123,6 +125,7 @@ class Model(object):
                 tf.boolean_mask(preds[:, 1:], mask),
                 tf.boolean_mask(self.head_ids[:, 1:], mask))
             self.uas = tf.reduce_mean(tf.cast(head_correct, tf.int32))
+        tf.summary.scalar('train/uas', self.uas)
 
         with tf.variable_scope('las'):
             mask = tf.not_equal(self.rel_ids[:, 1:], self.rel_pad_id)
@@ -132,6 +135,12 @@ class Model(object):
                 tf.boolean_mask(self.rel_ids[:, 1:], mask))
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
             self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.int32))
+        tf.summary.scalar('train/las', self.las)
+
+    def merge_summaries_and_create_writer(self, sess):
+        self.summary = tf.summary.merge_all()
+        self.summary_writer = tf.summary.FileWriter(
+            self.hparams.out_dir, sess.graph)
 
     def train(self, sentences_indexed, pos_indexed, rels_indexed, heads_padded):
         print('#'*30)
@@ -140,6 +149,12 @@ class Model(object):
         print(f'rels_indexed {rels_indexed.shape}')
         print(f'heads_padded {heads_padded.shape}')
         print('#'*30)
+
+        # Check out_dir
+        if not tf.gfile.Exists(self.hparams.out_dir):
+            utils.print_out(f"# Creating output directory {self.hparams.out_dir} ...")
+            tf.gfile.MakeDirs(self.hparams.out_dir)
+
         val_sentences, val_pos, val_rels, val_heads, val_maxlen = utils.get_dataset_multiindex(
             self.hparams.dev_filename)
 
@@ -162,6 +177,8 @@ class Model(object):
             sess = tf_debug.LocalCLIDebugWrapperSession(sess)
         sess.run(self.initializer)
 
+        self.merge_summaries_and_create_writer(sess)
+
         for epoch in range(self.hparams.num_train_epochs):
             model_loss = []
             heads_acc = []
@@ -176,6 +193,7 @@ class Model(object):
             progbar = Progbar(len(sentences_indexed))
             sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
                 sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
+                
             for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                     sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=self.hparams.batch_size):
                 sequence_length = utils.get_sequence_length(
@@ -189,13 +207,15 @@ class Model(object):
                     self.sequence_length: sequence_length,
                 }
 
-                h_arc_head, arc_logits, label_logits, uas, las = sess.run(
-                    [self.h_arc_head, self.arc_logits, self.label_logits, self.uas, self.las], feed_dict=feed_dict)
-                print(f'np.array(h_arc_head).shape={np.array(h_arc_head).shape}')
+                arc_logits, label_logits, uas, las, global_step, summary = sess.run(
+                    [self.arc_logits, self.label_logits, self.uas, self.las, self.global_step, self.summary], feed_dict=feed_dict)
                 print(f'np.array(arc_logits).shape={np.array(arc_logits).shape}')
                 print(f'np.array(label_logits).shape={np.array(label_logits).shape}')
                 print(f'uas={uas}')
                 print(f'las={las}')
+
+                if global_step % 10 == 0:
+                    self.summary_writer.add_summary(summary, global_step=global_step)
                 break
             break
 

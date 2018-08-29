@@ -48,6 +48,8 @@ def add_arguments(parser):
                         help='Path of train dataset')
     parser.add_argument('--dev_filename', type=str,
                         help='Path of dev dataset')
+    parser.add_argument("--out_dir", type=str, default=None,
+                        help="Store log/model files.")
 
     # Default settings works well (rarely need to change)
     parser.add_argument("--batch_size", type=int, default=128,
