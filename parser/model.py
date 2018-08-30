@@ -115,21 +115,26 @@ class Model(object):
             W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
                                                   self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
             full_label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
-                                                   self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)
+                                                   self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True) # [batch,seq_length,heads,label_classes]
             
             # turn off the padding tensor to false
             gold_heads = self.head_ids
             mask = tf.cast(tf.not_equal(gold_heads, self.head_pad_id), dtype=tf.int32)
-            pred_arcs = tf.multiply(gold_heads, mask) #conver to zero for padding values
+            pred_arcs = tf.multiply(gold_heads, mask) #convert to zero for padding values => [batch, sent_len]
 
-            # Gather label logits from predicted or gold heads
-            pred_arcs = tf.expand_dims(pred_arcs, 2) #[batch, sent_len, 1]
-            pred_arcs = tf.expand_dims(pred_arcs, 3) #[batch, sent_len, 1, 1]
-            pred_arcs = tf.tile(pred_arcs, [1, 1, 1, tf.shape(full_label_logits)[-1]]) # [batch, sent_len, 1, n_labels]
-            selected_label_logits = tf.gather(tf.reshape(full_label_logits, [-1]), axis=0, indices=tf.reshape(pred_arcs, [-1])) # [batch, n_labels, 1, sent_len]
-            selected_label_logits = tf.reshape(selected_label_logits, [tf.shape(full_label_logits)[0], tf.shape(full_label_logits)[1], 1, tf.shape(full_label_logits)[-1]]) # [batch, sent_len, 1, n_labels]
-            selected_label_logits = tf.squeeze(selected_label_logits, 2) # [batch, n_labels, sent_len]
-            self.label_logits = selected_label_logits
+            # Gather label logits from predicted or gold heads with gather
+            # need to compute batch_size, seq_length of pred_arcs(head_ids) for getting indices
+            pred_arcs_shape = tf.shape(pred_arcs)
+            batch_size = pred_arcs_shape[0]
+            seq_len = pred_arcs_shape[1]
+            batch_idx = tf.range(0, batch_size)  # [0, 1]
+            batch_idx = tf.expand_dims(batch_idx, 1)  # [[0], [1]]
+            batch_idx = tf.tile(batch_idx, [1, seq_len])  # [[0, 0], [1, 1]]
+            seq_idx = tf.range(0, seq_len)  # [0, 1]
+            seq_idx = tf.expand_dims(seq_idx, 0)  # [[0, 1]]
+            seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
+            indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)  # [[batch_idx, seq_idx, head_idx], ...]
+            self.label_logits = tf.gather_nd(full_label_logits, indices=indices)
 
     # loss logit
     def create_loss_op(self):
@@ -211,12 +216,12 @@ class Model(object):
                     self.sequence_length: sequence_length,
                 }
 
-                h_arc_head, arc_logits, label_logits, uas = sess.run(
-                    [self.h_arc_head, self.arc_logits, self.label_logits, self.uas], feed_dict=feed_dict)
+                h_arc_head, arc_logits, label_logits, uas, pred_arcs = sess.run(
+                    [self.h_arc_head, self.arc_logits, self.label_logits, self.uas, self.pred_arcs], feed_dict=feed_dict)
                 print(f'np.array(h_arc_head).shape={np.array(h_arc_head).shape}')
                 print(f'np.array(arc_logits).shape={np.array(arc_logits).shape}')
+                print(f'np.array(label_logits)={np.array(label_logits)}')
                 print(f'np.array(label_logits).shape={np.array(label_logits).shape}')
-                #print(f'np.array(label_logits)={np.array(label_logits)}')
                 print(f'uas={uas}')
                 break
             break
