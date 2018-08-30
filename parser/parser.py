@@ -41,7 +41,11 @@ def add_arguments(parser):
                         help='Number of LSTM layers')
 
     # optimizer
-    parser.add_argument("--num_train_epochs", type=int, default=400,
+    parser.add_argument("--learning_rate", type=float, default=0.001,
+                        help="Learning rate. Adam: 0.001 | 0.0001")
+    parser.add_argument("--decay_factor", type=float, default=0.9,
+                        help="How much we decay.")
+    parser.add_argument("--num_train_epochs", type=int, default=100,
                         help="Num epochs to train.")
 
     # data

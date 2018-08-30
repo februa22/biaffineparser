@@ -163,9 +163,13 @@ class Model(object):
         # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
         pass
 
-    # compute for gradient descent
     def create_train_op(self):
-        pass
+        assert float(
+            self.hparams.learning_rate
+        ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
+        opt = tf.train.AdamOptimizer(
+            learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        self.update = opt.minimize(self.train_loss)
 
     def create_uas_and_las_op(self):
         """ UAS and LAS"""
@@ -206,9 +210,9 @@ class Model(object):
         }
 
         if mode == tf.contrib.learn.ModeKeys.TRAIN:
-            fetches = [self.arc_logits, self.label_logits,
+            fetches = [self.update, self.arc_logits, self.label_logits,
                        self.uas, self.las, self.summary, self.global_step]
-            arc_logits, label_logits, uas, las, summary, global_step = self.sess.run(
+            _, arc_logits, label_logits, uas, las, summary, global_step = self.sess.run(
                 fetches, feed_dict)
             print(f'arc_logits={np.array(arc_logits).shape}')
             print(f'label_logits={np.array(label_logits).shape}')
