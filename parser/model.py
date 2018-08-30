@@ -174,9 +174,13 @@ class Model(object):
             self.label_logits, self.rel_ids, self.sequence_length)
         self.train_loss = loss_heads + loss_rels
 
-    # compute for gradient descent
     def create_train_op(self):
-        pass
+        assert float(
+            self.hparams.learning_rate
+        ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
+        opt = tf.train.AdamOptimizer(
+            learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        self.update = opt.minimize(self.train_loss)
 
     def create_uas_and_las_op(self):
         """ UAS and LAS"""
