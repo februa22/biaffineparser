@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 
+import sys
+
 import numpy as np
-
 import pandas as pd
-
-import _pickle as pickle
-
 import torch
 from torch.autograd import Variable
 from torch.nn.init import orthogonal_
+
+import _pickle as pickle
+
 GLOBAL_PAD_SYMBOL = '<PAD>'
 GLOBAL_UNK_SYMBOL = '<UNK>'
 
@@ -185,3 +186,24 @@ def init_lstm_weights(lstm, initializer=orthogonal_):
 
 def get_sequence_length(data, pad_id, axis=1):
     return np.sum(np.not_equal(data, pad_id), axis=axis)
+
+
+def print_out(s, f=None, new_line=True):
+    """Similar to print but with support to flush and output to a file."""
+    if isinstance(s, bytes):
+        s = s.decode("utf-8")
+
+    if f:
+        f.write(s.encode("utf-8"))
+        if new_line:
+            f.write(b"\n")
+
+    # stdout
+    out_s = s.encode("utf-8")
+    if not isinstance(out_s, str):
+        out_s = out_s.decode("utf-8")
+    print(out_s, end="", file=sys.stdout)
+
+    if new_line:
+        sys.stdout.write("\n")
+    sys.stdout.flush()
