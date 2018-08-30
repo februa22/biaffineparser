@@ -156,6 +156,24 @@ class Model(object):
             self.label_logits = tf.gather_nd(
                 full_label_logits, indices=indices)
 
+    # compute loss
+    def compute_loss(self, logits, gold_labels, sequence_length):
+        # computing loss for labels
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=gold_labels)
+        mask = tf.sequence_mask(sequence_length)
+        masked_loss = tf.boolean_mask(loss, mask)
+        mean_loss = tf.reduce_mean(masked_loss)
+        return mean_loss
+
+    # loss logit
+    def create_loss_op(self):
+        # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
+        loss_heads = self.compute_loss(
+            self.arc_logits, self.head_ids, self.sequence_length)
+        loss_rels = self.compute_loss(
+            self.label_logits, self.rel_ids, self.sequence_length)
+        self.train_loss = loss_heads + loss_rels
+
     # compute for gradient descent
     def create_train_op(self):
         pass
@@ -200,11 +218,12 @@ class Model(object):
 
         if mode == tf.contrib.learn.ModeKeys.TRAIN:
             fetches = [self.arc_logits, self.label_logits,
-                       self.uas, self.las, self.summary, self.global_step]
-            arc_logits, label_logits, uas, las, summary, global_step = self.sess.run(
-                fetches, feed_dict)
-            print(f'arc_logits={np.array(arc_logits).shape}')
-            print(f'label_logits={np.array(label_logits).shape}')
+                       self.uas, self.las, self.summary, self.global_step, self.train_loss]
+            arc_logits, label_logits, uas, las, summary, global_step, train_loss = self.sess.run(
+                fetches, feed_dict=feed_dict)
+            print(f'arc_logits={arc_logits.shape}')
+            print(f'label_logits={label_logits.shape}')
+            print(f'train_loss={train_loss}')
             print(f'uas={uas}')
             print(f'las={las}')
             if global_step % 10 == 0:
