@@ -22,7 +22,7 @@ def add_arguments(parser):
                         help='Embedding size')
     parser.add_argument('--embedding_train_size', type=int, default=100,
                         help='Embedding size for train')
-    parser.add_argument('--lstm_hidden_size', type=int, default=450,
+    parser.add_argument('--lstm_hidden_size', type=int, default=400,
                         help='Number of hidden units for LSTM')
     parser.add_argument('--pos_embedding_size', type=int, default=100,
                         help='Size of POS embedding')
@@ -73,17 +73,17 @@ def str2bool(v):
 
 def main(flags):
     print('Loading dataset..')
-    (sentences_indexed,
-        pos_indexed,
-        heads_padded,
-        rels_indexed,
-        words_dict,
-        pos_features_dict,
-        heads_features_dict,
-        rels_features_dict,
-        word_embedding,
-        pos_embedding,
-        maxlen,
+    (sentences_indexed,  # (12543, 160)
+        pos_indexed,  # (12543, 160)
+        heads_padded,   # (12543, 160)
+        rels_indexed,   # (12543, 160)
+        words_dict, # 400005
+        pos_features_dict, # 20
+        heads_features_dict, # 132
+        rels_features_dict, # 53
+        word_embedding, # (400005, 100)
+        pos_embedding, # (20, 100)
+        maxlen, # 160
      ) = utils.load_dataset(flags.train_filename)
 
     # sanity check

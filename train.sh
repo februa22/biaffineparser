@@ -12,5 +12,5 @@ echo "train"
 python -m parser.parser \
     --train_filename=${train_filename} \
     --dev_filename=${dev_filename}  \
-    --device=${device} \
+    --device=${device}  \
     --debug=${debug}
