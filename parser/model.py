@@ -23,8 +23,6 @@ class Model(object):
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.hparams = hparams
-        # print(f"hparams={vars(self.hparams)}")
-        # exit()
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
@@ -134,11 +132,6 @@ class Model(object):
             seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)  # [[batch_idx, seq_idx, head_idx], ...]
             self.label_logits = tf.gather_nd(full_label_logits, indices=indices)
-
-    # loss logit
-    def create_loss_op(self):
-        # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
-        pass
 
     # compute for gradient descent
     def create_train_op(self):
