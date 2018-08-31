@@ -80,7 +80,7 @@ class Model(object):
             tf.int32, shape=[None], name='sequence_length')
 
     def create_embedding_layer(self):
-        with tf.variable_scope('embeddings'):
+        with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
             _word_embedding = tf.Variable(
                 self.word_embedding, name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
