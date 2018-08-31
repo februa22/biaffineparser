@@ -83,6 +83,7 @@ def str2bool(v):
 
 def main(flags):
     print('Loading dataset..')
+    # loading trainind dataset and embed
     (sentences_indexed,  # (12543, 160)
         pos_indexed,  # (12543, 160)
         heads_padded,   # (12543, 160)
@@ -120,6 +121,7 @@ def main(flags):
     rev_vocab_words = {w: i for i, w in (words_dict.items())}
     rev_vocab_rels = {w: i for i, w in (rels_features_dict.items())}
 
+    # embed vadliation(dev) dataset
     val_sentences, val_pos, val_rels, val_heads, val_maxlen = utils.get_dataset_multiindex(
         flags.dev_filename)
     val_sentences_indexed = utils.get_indexed_sequences(
@@ -137,17 +139,20 @@ def main(flags):
     model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
                   word_embedding, pos_embedding)
 
+    # train
     for epoch in range(flags.num_train_epochs):
         # reset progbar each epoch
         progbar = Progbar(len(sentences_indexed))
         sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
             sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
+
         # iterate over the train-set
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
             uas, las = model.train_step(
                 sentences_indexed_batch, pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
             break
+
         # iterate over the dev-set
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 val_sentences_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded,
