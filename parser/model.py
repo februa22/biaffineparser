@@ -177,38 +177,48 @@ class Model(object):
         self.train_loss = loss_heads + loss_rels
 
     def create_train_op(self):
-        assert float(
-            self.hparams.learning_rate
-        ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
-        opt = tf.train.AdamOptimizer(
-            learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        if self.hparams.optimizer == 'sgd':
+            opt = tf.train.GradientDescentOptimizer(self.hparams.learning_rate)
+        elif self.hparams.optimizer == 'adam':
+            assert float(
+                self.hparams.learning_rate
+            ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
+            opt = tf.train.AdamOptimizer(
+                learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        else:
+            raise ValueError(f'Unknown optimizer {self.hparams.optimizer}')
         self.update = opt.minimize(self.train_loss)
 
     def create_uas_and_las_op(self):
         """ UAS and LAS"""
         with tf.variable_scope('uas'):
-            mask = tf.not_equal(self.head_ids[:, 1:], self.head_pad_id)
+            sequence_mask = tf.sequence_mask(self.sequence_length)
             preds = tf.argmax(self.arc_logits, axis=-1, output_type=tf.int32)
             head_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], mask),
-                tf.boolean_mask(self.head_ids[:, 1:], mask))
+                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
+                tf.boolean_mask(self.head_ids[:, 1:], sequence_mask[:, 1:]))
             self.uas = tf.reduce_mean(tf.cast(head_correct, tf.int32))
-        tf.summary.scalar('train/uas', self.uas)
 
         with tf.variable_scope('las'):
-            mask = tf.not_equal(self.rel_ids[:, 1:], self.rel_pad_id)
             preds = tf.argmax(self.label_logits, axis=-1, output_type=tf.int32)
             rel_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], mask),
-                tf.boolean_mask(self.rel_ids[:, 1:], mask))
+                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
+                tf.boolean_mask(self.rel_ids[:, 1:], sequence_mask[:, 1:]))
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
             self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.int32))
-        tf.summary.scalar('train/las', self.las)
 
     def merge_summaries_and_create_writer(self, sess):
         self.summary = tf.summary.merge_all()
         self.summary_writer = tf.summary.FileWriter(
             self.hparams.out_dir, sess.graph)
+
+    def add_summary(self, global_step, tag, value):
+        """Add a new summary to the current summary_writer.
+        Useful to log things that are not part of the training graph, e.g., tag=UAS.
+        """
+        summary = tf.Summary(
+            value=[tf.Summary.Value(tag=tag, simple_value=value)])
+        self.summary_writer.add_summary(summary, global_step)
 
     def train_or_eval(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed, mode):
         sequence_length = utils.get_sequence_length(
@@ -223,25 +233,17 @@ class Model(object):
         }
 
         if mode == tf.contrib.learn.ModeKeys.TRAIN:
-            fetches = [self.arc_logits, self.label_logits,
-                       self.uas, self.las, self.summary, self.global_step, self.train_loss]
-            arc_logits, label_logits, uas, las, summary, global_step, train_loss = self.sess.run(
-                fetches, feed_dict=feed_dict)
-            print(f'arc_logits={arc_logits.shape}')
-            print(f'label_logits={label_logits.shape}')
-            print(f'train_loss={train_loss}')
-            print(f'uas={uas}')
-            print(f'las={las}')
-            if global_step % 10 == 0:
-                self.summary_writer.add_summary(
-                    summary, global_step=global_step)
+            fetches = [self.update, self.train_loss,
+                       self.uas, self.las, self.global_step]
+            step_result = self.sess.run(fetches, feed_dict)
+            (_, loss, uas, las, global_step) = step_result
+            # print(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
         elif mode == tf.contrib.learn.ModeKeys.EVAL:
-            # TODO(jongseong): implement to write summary for dev-set
-            fetches = [self.uas, self.las, self.global_step]
-            uas, las, global_step = self.sess.run(fetches, feed_dict)
-            print(f'uas={uas}')
-            print(f'las={las}')
-        return uas, las
+            fetches = [self.train_loss, self.uas, self.las, self.global_step]
+            step_result = self.sess.run(fetches, feed_dict)
+            (loss, uas, las, global_step) = step_result
+            # print(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
+        return loss, uas, las, global_step
 
     def train_step(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed):
         return self.train_or_eval(

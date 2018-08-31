@@ -41,6 +41,8 @@ def add_arguments(parser):
                         help='Number of LSTM layers')
 
     # optimizer
+    parser.add_argument("--optimizer", type=str, default="adam",
+                        help="sgd | adam")
     parser.add_argument("--learning_rate", type=float, default=0.001,
                         help="Learning rate. Adam: 0.001 | 0.0001")
     parser.add_argument("--decay_factor", type=float, default=0.9,
@@ -147,24 +149,52 @@ def main(flags):
         # iterate over the train-set
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
-            uas, las = model.train_step(
+            loss, uas, las, global_step = model.train_step(
                 sentences_indexed_batch, pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
-            break
-
+            if global_step % 10 == 0:
+                model.add_summary(global_step, 'train/loss', loss)
+                model.add_summary(global_step, 'train/uas', uas)
+                model.add_summary(global_step, 'train/las', las)
+            progbar.add(len(sentences_indexed_batch), values=[
+                ('epoch', int(epoch)),
+                ('loss', loss),
+                ('uas', uas),
+                ('las', las),
+            ])
         # iterate over the dev-set
+        total_eval_loss, total_eval_uas, total_eval_las = [], [], []
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 val_sentences_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded,
                 batch_size=flags.batch_size):
-            uas, las = model.eval_step(
+            eval_loss, eval_uas, eval_las, global_step = model.eval_step(
                 sentences_indexed_batch, pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
-            break
-        break
+            total_eval_loss.append(eval_loss)
+            total_eval_uas.append(eval_uas)
+            total_eval_las.append(eval_las)
+        eval_loss = np.mean(total_eval_loss)
+        eval_uas = np.mean(total_eval_uas)
+        eval_las = np.mean(total_eval_las)
+        model.add_summary(global_step, 'eval/loss', eval_loss)
+        model.add_summary(global_step, 'eval/uas', eval_uas)
+        model.add_summary(global_step, 'eval/las', eval_las)
+        progbar.add(1, values=[
+            ('epoch', int(epoch)),
+            ('loss', loss),
+            ('uas', uas),
+            ('las', las),
+            ('eval_loss', eval_loss),
+            ('eval_uas', eval_uas),
+            ('eval_las', eval_las),
+        ])
+        print('\n')
 
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)
     FLAGS = argparser.parse_args()
+    print('#'*30)
     print(FLAGS)
+    print('#'*30)
     main(FLAGS)
     print('Done')
