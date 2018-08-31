@@ -101,6 +101,7 @@ class Model(object):
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
+            batch_size = tf.shape(self.word_ids)[0]
             self.output = tf.reshape(
                 self.output, [-1, 2*self.hparams.lstm_hidden_size])
             # MLP
@@ -110,13 +111,13 @@ class Model(object):
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim]
             self.h_arc_head = tf.reshape(
-                self.h_arc_head, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_head, [batch_size, -1, self.hparams.arc_mlp_units])
             self.h_arc_dep = tf.reshape(
-                self.h_arc_dep, [self.hparams.batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_dep, [batch_size, -1, self.hparams.arc_mlp_units])
             self.h_label_head = tf.reshape(
-                self.h_label_head, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_head, [batch_size, -1, self.hparams.label_mlp_units])
             self.h_label_dep = tf.reshape(
-                self.h_label_dep, [self.hparams.batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_dep, [batch_size, -1, self.hparams.label_mlp_units])
 
     def create_biaffine_layer(self):
         """ adding arc and label logits """
