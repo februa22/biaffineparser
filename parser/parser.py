@@ -41,6 +41,8 @@ def add_arguments(parser):
                         help='Number of LSTM layers')
 
     # optimizer
+    parser.add_argument("--optimizer", type=str, default="adam",
+                        help="sgd | adam")
     parser.add_argument("--learning_rate", type=float, default=0.001,
                         help="Learning rate. Adam: 0.001 | 0.0001")
     parser.add_argument("--decay_factor", type=float, default=0.9,

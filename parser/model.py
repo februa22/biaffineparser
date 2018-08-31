@@ -175,11 +175,16 @@ class Model(object):
         self.train_loss = loss_heads + loss_rels
 
     def create_train_op(self):
-        assert float(
-            self.hparams.learning_rate
-        ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
-        opt = tf.train.AdamOptimizer(
-            learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        if self.hparams.optimizer == 'sgd':
+            opt = tf.train.GradientDescentOptimizer(self.hparams.learning_rate)
+        elif self.hparams.optimizer == 'adam':
+            assert float(
+                self.hparams.learning_rate
+            ) <= 0.001, f'! High Adam learning rate {self.hparams.learning_rate}'
+            opt = tf.train.AdamOptimizer(
+                learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
+        else:
+            raise ValueError(f'Unknown optimizer {self.hparams.optimizer}')
         self.update = opt.minimize(self.train_loss)
 
     def create_uas_and_las_op(self):
