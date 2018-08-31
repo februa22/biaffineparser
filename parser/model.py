@@ -192,19 +192,18 @@ class Model(object):
     def create_uas_and_las_op(self):
         """ UAS and LAS"""
         with tf.variable_scope('uas'):
-            mask = tf.not_equal(self.head_ids[:, 1:], self.head_pad_id)
+            sequence_mask = tf.sequence_mask(self.sequence_length)
             preds = tf.argmax(self.arc_logits, axis=-1, output_type=tf.int32)
             head_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], mask),
-                tf.boolean_mask(self.head_ids[:, 1:], mask))
+                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
+                tf.boolean_mask(self.head_ids[:, 1:], sequence_mask[:, 1:]))
             self.uas = tf.reduce_mean(tf.cast(head_correct, tf.int32))
 
         with tf.variable_scope('las'):
-            mask = tf.not_equal(self.rel_ids[:, 1:], self.rel_pad_id)
             preds = tf.argmax(self.label_logits, axis=-1, output_type=tf.int32)
             rel_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], mask),
-                tf.boolean_mask(self.rel_ids[:, 1:], mask))
+                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
+                tf.boolean_mask(self.rel_ids[:, 1:], sequence_mask[:, 1:]))
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
             self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.int32))
 
@@ -217,7 +216,8 @@ class Model(object):
         """Add a new summary to the current summary_writer.
         Useful to log things that are not part of the training graph, e.g., tag=UAS.
         """
-        summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=value)])
+        summary = tf.Summary(
+            value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
     def train_or_eval(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed, mode):
@@ -233,7 +233,8 @@ class Model(object):
         }
 
         if mode == tf.contrib.learn.ModeKeys.TRAIN:
-            fetches = [self.update, self.train_loss, self.uas, self.las, self.global_step]
+            fetches = [self.update, self.train_loss,
+                       self.uas, self.las, self.global_step]
             step_result = self.sess.run(fetches, feed_dict)
             (_, loss, uas, las, global_step) = step_result
             # print(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
