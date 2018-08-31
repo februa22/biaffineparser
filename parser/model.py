@@ -159,9 +159,11 @@ class Model(object):
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
         # computing loss for labels
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=gold_labels)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=logits, labels=gold_labels)
         mask = tf.sequence_mask(sequence_length)
-        masked_loss = tf.boolean_mask(loss, mask)
+        # slice loss and mask for getting rid of root_word => [:, 1:]
+        masked_loss = tf.boolean_mask(loss[:, 1:], mask[:, 1:])
         mean_loss = tf.reduce_mean(masked_loss)
         return mean_loss
 
