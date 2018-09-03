@@ -171,7 +171,6 @@ def get_dataset_multiindex(filepath):
             maxlen = tempsentlen
         if i % 1000 == 0:
             print(i, temp_sent, temp_pos, temp_rels, temp_heads)
-    pdb.set_trace()
     return sentences, pos, rels, heads, maxlen
 
 
