@@ -133,8 +133,8 @@ def main(flags):
     val_heads_padded = utils.get_indexed_sequences(
         val_heads, heads_features_dict, val_maxlen, just_pad=True)
 
-    best_val_loss = 100
-    stopcount = 0
+    best_eval_uas = .0
+    stop_count = 0
 
     model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
                   word_embedding, pos_embedding)
@@ -187,6 +187,17 @@ def main(flags):
             ('eval_las', eval_las),
         ])
         print('\n')
+        # save the best model or early stopping
+        if eval_uas > best_eval_uas:
+            model.save()
+            best_eval_uas = eval_loss
+            stop_count = 0
+            utils.print_out('# new best UAS!')
+        elif stop_count >= 20:
+            utils.print_out(f'# early stopping {stop_count} epochs without improvement')
+            break
+        else:
+            stop_count += 1
 
 
 if __name__ == '__main__':

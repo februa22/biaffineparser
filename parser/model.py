@@ -41,6 +41,8 @@ class Model(object):
         self.train_mode = tf.contrib.learn.ModeKeys.TRAIN
         self.eval_mode = tf.contrib.learn.ModeKeys.EVAL
 
+        self.saver = tf.train.Saver()
+
         config_proto = tf.ConfigProto(
             log_device_placement=False,
             allow_soft_placement=True)
@@ -253,6 +255,9 @@ class Model(object):
     def eval_step(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed):
         return self.train_or_eval(
             sentences_indexed, pos_indexed, heads_indexed, rels_indexed, self.eval_mode)
+
+    def save(self):
+        self.saver.save(self.sess, self.hparams.out_dir)
 
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths):
