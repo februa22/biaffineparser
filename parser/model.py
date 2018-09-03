@@ -200,7 +200,7 @@ class Model(object):
             head_correct = tf.equal(
                 tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
                 tf.boolean_mask(self.head_ids[:, 1:], sequence_mask[:, 1:]))
-            self.uas = tf.reduce_mean(tf.cast(head_correct, tf.int32))
+            self.uas = tf.reduce_mean(tf.cast(head_correct, tf.float32))
 
         with tf.variable_scope('las'):
             preds = tf.argmax(self.label_logits, axis=-1, output_type=tf.int32)
@@ -208,7 +208,7 @@ class Model(object):
                 tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
                 tf.boolean_mask(self.rel_ids[:, 1:], sequence_mask[:, 1:]))
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
-            self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.int32))
+            self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.float32))
 
     def merge_summaries_and_create_writer(self, sess):
         self.summary = tf.summary.merge_all()
