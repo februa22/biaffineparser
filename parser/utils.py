@@ -9,6 +9,10 @@ from torch.autograd import Variable
 from torch.nn.init import orthogonal_
 
 import _pickle as pickle
+import csv
+
+#for debugging
+import pdb
 
 GLOBAL_PAD_SYMBOL = '<PAD>'
 GLOBAL_UNK_SYMBOL = '<UNK>'
@@ -143,7 +147,8 @@ def cast_safe_list(elem):
 
 def get_dataset_multiindex(filepath):
 
-    dataset = pd.read_csv(filepath)
+    #dataset = pd.read_csv(filepath, sep=',')
+    dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
     dataset['w'] = dataset['w'].apply(lambda x: str(x).lower())
     dataset = dataset.set_index(['s'])
@@ -164,6 +169,9 @@ def get_dataset_multiindex(filepath):
         tempsentlen = len(temp_sent)
         if tempsentlen > maxlen:
             maxlen = tempsentlen
+        if i % 1000 == 0:
+            print(i, temp_sent, temp_pos, temp_rels, temp_heads)
+    pdb.set_trace()
     return sentences, pos, rels, heads, maxlen
 
 

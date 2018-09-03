@@ -8,11 +8,15 @@ dev_input_file=raw/sejong.ppos2.test.utf8.txt
 dev_output_file=raw/sejong.test.csv
 ############## END #####################
 
+#exit 0
+
 echo "building dev_data"
 python -m parser.build_data \
     --input_file=${dev_input_file} \
     --output_file=${dev_output_file}
 echo "building dev_data DONE"    
+
+#exit 0
 
 echo "building train_data"
 python -m parser.build_data \
