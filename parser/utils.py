@@ -77,10 +77,10 @@ def load_dataset(filepath):
     sentences, pos, rels, heads, maxlen = get_dataset_multiindex(filepath)
 
     pos_indexed, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, 100, maxlen)
-    pdb.set_trace() #
+    #pdb.set_trace() #
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(rels, 100, maxlen, starti=0)
-    pdb.set_trace() #
+    #pdb.set_trace() #
 
     _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0)
     heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
