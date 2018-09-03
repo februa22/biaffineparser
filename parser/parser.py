@@ -190,11 +190,12 @@ def main(flags):
         # save the best model or early stopping
         if eval_uas > best_eval_uas:
             model.save()
-            best_eval_uas = eval_loss
+            best_eval_uas = eval_uas
             stop_count = 0
             utils.print_out('# new best UAS!')
         elif stop_count >= 20:
-            utils.print_out(f'# early stopping {stop_count} epochs without improvement')
+            utils.print_out(f'# early stopping {stop_count} \
+                            epochs without improvement')
             break
         else:
             stop_count += 1
