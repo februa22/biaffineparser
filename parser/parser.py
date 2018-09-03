@@ -186,7 +186,6 @@ def main(flags):
             ('eval_uas', eval_uas),
             ('eval_las', eval_las),
         ])
-        print('\n')
         # save the best model or early stopping
         if eval_uas > best_eval_uas:
             model.save()
@@ -199,6 +198,7 @@ def main(flags):
             break
         else:
             stop_count += 1
+        print('\n')
 
 
 if __name__ == '__main__':
