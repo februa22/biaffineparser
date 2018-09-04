@@ -2,8 +2,8 @@
 
 #### Set your hyper-parameters here ####
 ############## START ###################
-train_filename=data/train_conll17.csv # Path of train dataset.
-dev_filename=data/dev_conll17.csv # Path of dev dataset.
+train_filename=raw/sejong.train.csv # Path of train dataset.
+dev_filename=raw/sejong.test.csv # Path of dev dataset.
 out_dir=parser/parser_model # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
