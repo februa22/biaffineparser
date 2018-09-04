@@ -151,6 +151,16 @@ def load_glove_model(glove_file_path, words_dict):
     embedding_matrix[unk_index] = np.random.rand(embedding_size)
     return embedding_matrix, words_dict
 
+def save_vocab(vocab, filepath):
+    print_out(f'Save vocab... {filepath}')
+    pickle.dump(vocab, open(filepath, 'wb'))
+
+
+def load_vocab(filepath):
+    print_out(f'Load vocab... {filepath}')
+    return pickle.load(open(filepath, 'rb'))
+
+
 def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=False, split_word=False, maxwordl=0):
     """
     Index and pad sequences according to vocab and max len
@@ -200,7 +210,6 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
     """
     features_dict = {}
     i = starti
-    print('starti=',starti)
     for sentence in features:
         for f in sentence:
             #어절을 잘라야할 경우
@@ -230,7 +239,7 @@ def cast_safe_list(elem):
 
 
 def get_dataset_multiindex(filepath):
-    #dataset = pd.read_csv(filepath, sep=',')
+    print_out(f'Load dataset... {filepath}')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
     dataset['w'] = dataset['w'].apply(lambda x: str(x).lower())
@@ -261,6 +270,18 @@ def get_dataset_multiindex(filepath):
             print("reading index=", i)
     # maxwordlen added for getting word length(어절 내의 최대 단어 수)
     return sentences, pos, rels, heads, maxlen, maxwordlen
+
+
+def replace_and_save_dataset(input_file, heads, rels, output_file):
+    print_out(f'Replace dataset... {input_file}')
+    dataset = pd.read_csv(input_file)
+    dataset = dataset.set_index(['s'])
+    for i in dataset.index.unique():
+        dataset.loc[i, 'f'] = rels[i]
+        dataset.loc[i, 'g'] = heads[i]
+    
+    print_out(f'Save dataset... {output_file}')
+    dataset.to_csv(output_file, encoding='utf-8')
 
 
 def to_one_hot(y, n_dims=None):
