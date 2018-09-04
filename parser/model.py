@@ -302,8 +302,8 @@ class Model(object):
         (sentences_indexed, pos_indexed) = data
         return self._run_session(sentences_indexed, pos_indexed)
 
-    def save(self):
-        self.saver.save(self.sess, self.hparams.out_dir)
+    def save(self, save_path):
+        self.saver.save(self.sess, save_path)
 
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):

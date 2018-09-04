@@ -119,7 +119,7 @@ def evaluate(model, data, batch_size):
 
 
 def evaluate_and_write_predictions(flags, model, data, inference_input_file):
-    model.new_sess_and_restore(flags.out_dir)
+    model.new_sess_and_restore(os.path.join(flags.out_dir, 'parser.ckpt'))
     eval_result = evaluate(model, data, flags.batch_size)
     (_, uas, las, all_head_preds, all_rel_preds_ids, lengths) = eval_result
     utils.print_out(f'# uas: {uas} - las: {las}')
@@ -241,7 +241,7 @@ def main(flags):
         print('\n')
         # save the best model or early stopping
         if eval_uas > best_eval_uas:
-            model.save()
+            model.save(os.path.join(flags.out_dir, 'parser.ckpt'))
             best_eval_uas = eval_uas
             stop_count = 0
             utils.print_out('# new best UAS!\n')
