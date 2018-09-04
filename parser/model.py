@@ -70,10 +70,12 @@ class Model(object):
             tf.gfile.MakeDirs(self.hparams.out_dir)
 
     def create_placeholders(self):
+        # word_ids, pos_ids shape: (?,?,?) => (batch_size, sequence_words, word_morphs)
         self.word_ids = tf.placeholder(
-            tf.int32, shape=[None, None], name='word_ids')
+            tf.int32, shape=[None, None, None], name='word_ids')
         self.pos_ids = tf.placeholder(
-            tf.int32, shape=[None, None], name='pos_ids')
+            tf.int32, shape=[None, None, None], name='pos_ids')
+
         self.head_ids = tf.placeholder(
             tf.int32, shape=[None, None], name='head_ids')
         self.rel_ids = tf.placeholder(
@@ -87,14 +89,16 @@ class Model(object):
                 self.word_embedding, name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
+            reduced_word_embedding = tf.reduce_mean(word_embedding, axis=-2)
 
             _pos_embedding = tf.Variable(
                 self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
+            reduced_pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
 
             self.embeddings = tf.concat(
-                [word_embedding, pos_embedding], axis=-1)
+                [reduced_word_embedding, reduced_pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
@@ -111,7 +115,7 @@ class Model(object):
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output)
             # Reshape
-            #   h_arc_head: [batch_size, seq_len, dim]
+            #   h_arc_head: [batch_size, seq_len, dim])
             self.h_arc_head = tf.reshape(
                 self.h_arc_head, [batch_size, -1, self.hparams.arc_mlp_units])
             self.h_arc_dep = tf.reshape(

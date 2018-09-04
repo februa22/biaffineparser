@@ -10,6 +10,8 @@ from . import utils
 from .model import Model
 from .progress_bar import Progbar
 
+import pdb
+
 FLAGS = None
 
 
@@ -96,6 +98,7 @@ def main(flags):
         pos_embedding,  # (20, 100)
         maxlen,  # 160
      ) = utils.load_dataset(flags.train_filename)
+    #pdb.set_trace()
 
     print('#'*30)
     print(f'sentences_indexed {sentences_indexed.shape}')
@@ -122,22 +125,22 @@ def main(flags):
     rev_vocab_rels = {w: i for i, w in (rels_features_dict.items())}
 
     # embed vadliation(dev) dataset
-    val_sentences, val_pos, val_rels, val_heads, val_maxlen = utils.get_dataset_multiindex(
+    val_sentences, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
         flags.dev_filename)
     val_sentences_indexed = utils.get_indexed_sequences(
-        val_sentences, words_dict, val_maxlen)
+        val_sentences, words_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_pos_indexed = utils.get_indexed_sequences(
-        val_pos, pos_features_dict, val_maxlen)
+        val_pos, pos_features_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_rels_indexed = utils.get_indexed_sequences(
         val_rels, rels_features_dict, val_maxlen)
     val_heads_padded = utils.get_indexed_sequences(
-        val_heads, heads_features_dict, val_maxlen, just_pad=True)
+        val_heads, heads_features_dict, val_maxlen, just_pad=False)
 
     best_eval_uas = .0
     stop_count = 0
 
-    model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict,
-                  word_embedding, pos_embedding)
+    print(f'len(rels_features_dict)={len(rels_features_dict)}')
+    model = Model(flags, words_dict, pos_features_dict, rels_features_dict, heads_features_dict, word_embedding, pos_embedding)
 
     # train
     for epoch in range(flags.num_train_epochs):
@@ -145,10 +148,13 @@ def main(flags):
         progbar = Progbar(len(sentences_indexed))
         sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
             sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
-
+        
         # iterate over the train-set
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
+            
+            #pdb.set_trace() #
+
             loss, uas, las, global_step = model.train_step(
                 sentences_indexed_batch, pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
             if global_step % 10 == 0:

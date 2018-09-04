@@ -9,6 +9,7 @@ from torch.autograd import Variable
 from torch.nn.init import orthogonal_
 
 import _pickle as pickle
+import json
 import csv
 
 #for debugging
@@ -74,47 +75,120 @@ class VocabSelector:
 
 
 def load_dataset(filepath):
-    sentences, pos, rels, heads, maxlen = get_dataset_multiindex(filepath)
+    
+    sentences, pos, rels, heads, maxlen, maxwordlen = get_dataset_multiindex(filepath)
+    
+    _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0, return_embeddings=False)
+    #update maxlen when maxlen is less or equal to number of head_features (head_vocab)
+    if maxlen < len(heads_features_dict):
+        print(f'updating maxlen since it is less than head_features : maxlen={maxlen}')
+        maxlen = len(heads_features_dict)
 
-    pos_indexed, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, 100, maxlen)
-    #pdb.set_trace() #
+    _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, 100, maxlen, return_embeddings=False, split_word=True)
+
+    pos_indexed = get_indexed_sequences(pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(rels, 100, maxlen, starti=0)
-    #pdb.set_trace() #
 
-    _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0)
-    heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
+    heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=False)
+    
+    _, words_dict, _ = initialize_embed_features(sentences, 100, maxlen, split_word=True, starti=0)
 
-    words_dict = pickle.load(open('embeddings/vocab.pkl', 'rb'))
+    # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
+    words_embeddings_matrix, merged_words_dict = load_glove_model('embeddings/glove.result.morph.vec', words_dict=words_dict)
 
-    sentences_indexed = get_indexed_sequences(sentences, words_dict, maxlen)
-    words_embeddings_matrix = np.load('embeddings/vectors.npy', allow_pickle=False)
-    return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
+    # making word_dictionary
+    sentences_indexed = get_indexed_sequences(sentences, merged_words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
+    
+    # dumping dictionaries
+    print('dumping words_dict')
+    with open('embeddings/merged_words_dict.json', 'w') as f:
+        json.dump(merged_words_dict, f, indent=4, ensure_ascii=False)
+        print('dumping pos_features_dict')
+    with open('embeddings/pos_features_dict.pkl', 'wb') as f:
+        pickle.dump(pos_features_dict, f)
+    with open('embeddings/pos_features_dict.json', 'w') as f:
+        json.dump(pos_features_dict, f, indent=4)
+    print('dumping heads_features_dict')
+    with open('embeddings/heads_features_dict.pkl', 'wb') as f:
+        pickle.dump(heads_features_dict, f)
+    with open('embeddings/heads_features_dict.json', 'w') as f:
+        json.dump(heads_features_dict, f, indent=4)
+    print('dumping rels_features_dict')
+    with open('embeddings/rels_features_dict.pkl', 'wb') as f:
+        pickle.dump(rels_features_dict, f)
+    with open('embeddings/rels_features_dict.json', 'w') as f:
+        json.dump(rels_features_dict, f, indent=4)
+    return sentences_indexed, pos_indexed, heads_padded, rels_indexed, merged_words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
+#loading glove model
+def load_glove_model(glove_file_path, words_dict):
+    print("Loading Glove Model and merging with words_dict")
+    glove_dict = {}
+    with open(glove_file_path, 'r', encoding='utf-8') as f:
+        for index, line in enumerate(f):
+            if line.strip():
+                word_and_embedding = line.strip().split('\t', 1)
+                word = word_and_embedding[0]
+                embedding = np.array([a for a in word_and_embedding[1].split(',')])
+                glove_dict[word] = embedding
+                # add glove word in word_dict
+                if word not in words_dict:
+                    words_dict[word] = len(words_dict)
+            #get embedding_size: ex) 200
+            embedding_size = len(embedding)
+    
+    #create empty embedding matrix with zeros
+    embedding_matrix = np.zeros((len(words_dict), embedding_size))
+    for key, value in words_dict.items():
+        word_vocab = key
+        word_index = value
+        word_vector = glove_dict.get(word_vocab, None)
+        # add word_vector to matrix
+        if word_vector is not None:
+            embedding_matrix[word_index] = word_vector
+    unk_index = words_dict['<UNK>']
+    embedding_matrix[unk_index] = np.random.rand(embedding_size)
+    return embedding_matrix, words_dict
 
-def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=False):
+def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=False, split_word=False, maxwordl=0):
     """
     Index and pad sequences according to vocab and max len
     :param sequences:
     :param vocab:
     :param maxl:
     :param just_pad:
+    :param split_word: split word into morphs: shape(?,?,?)
+    :param maxwordl: max length of splitted words
     :return:
     """
-    indexed_sequences = np.full((len(sequences), maxl), vocab.get('<PAD>', GLOBAL_PAD_SYMBOL), dtype=np.int32)
-    for i, sequence in enumerate(sequences):
-        for j, s in enumerate(sequence):
-            if j >= maxl:
-                break
-            if just_pad:
-                indexed_sequences[i, j] = s
-            else:
-                indexed_sequences[i, j] = vocab.get(s, vocab.get('<UNK>', GLOBAL_UNK_SYMBOL))
-
+    #어절 내에서도 split할 경우
+    if split_word:
+        indexed_sequences = np.full((len(sequences), maxl, maxwordl), vocab.get('<PAD>', GLOBAL_PAD_SYMBOL), dtype=np.int32)
+        for i, sequence in enumerate(sequences):
+            for j, s in enumerate(sequence):
+                #print(sequence)
+                for k, v in enumerate(s.strip().split('|')):
+                    if k >= maxwordl:
+                        break
+                    if just_pad:
+                        indexed_sequences[i, j, k] = v
+                    else:
+                        indexed_sequences[i, j, k] = vocab.get(v, vocab.get('<UNK>', GLOBAL_UNK_SYMBOL))
+    else:
+        indexed_sequences = np.full((len(sequences), maxl), vocab.get('<PAD>', GLOBAL_PAD_SYMBOL), dtype=np.int32)
+        for i, sequence in enumerate(sequences):
+            for j, s in enumerate(sequence):
+                if j >= maxl:
+                    break
+                if just_pad:
+                    indexed_sequences[i, j] = s
+                else:
+                    indexed_sequences[i, j] = vocab.get(s, vocab.get('<UNK>', GLOBAL_UNK_SYMBOL))
     return indexed_sequences
 
 
-def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True):
+def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True, split_word: bool=False):
     """
     Takes a list of sequences, for example sentences, pos tags or relations.
     Initialize a dict and the random embedding matrix to train
@@ -126,11 +200,19 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
     """
     features_dict = {}
     i = starti
+    print('starti=',starti)
     for sentence in features:
         for f in sentence:
-            if features_dict.get(f, None) is None:
-                features_dict[f] = i
-                i += 1
+            #어절을 잘라야할 경우
+            if split_word:
+                for word in str(f).strip().split('|'):
+                    if features_dict.get(word, None) is None:
+                        features_dict[word] = i
+                        i += 1
+            else:
+                if features_dict.get(f, None) is None:
+                    features_dict[f] = i
+                    i += 1
     features_dict['<UNK>'] = len(features_dict)
     features_dict['<PAD>'] = len(features_dict)
     indexed = get_indexed_sequences(features, features_dict, maxl)
@@ -148,7 +230,6 @@ def cast_safe_list(elem):
 
 
 def get_dataset_multiindex(filepath):
-
     #dataset = pd.read_csv(filepath, sep=',')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
@@ -159,6 +240,7 @@ def get_dataset_multiindex(filepath):
     rels = []
     heads = []
     maxlen = 0
+    maxwordlen = 0
     for i in dataset.index.unique():
         temp_sent = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['w'])
         temp_pos = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['x'])
@@ -169,9 +251,16 @@ def get_dataset_multiindex(filepath):
         rels.append(temp_rels)
         heads.append(temp_heads)
         tempsentlen = len(temp_sent)
+        # get longest size of the word (어절)
+        tempwordlen = max([len(word.strip().split('|')) for word in temp_sent])
         if tempsentlen > maxlen:
             maxlen = tempsentlen
-    return sentences, pos, rels, heads, maxlen
+        if tempwordlen > maxwordlen:
+            maxwordlen = tempwordlen
+        if i % 5000 == 0:
+            print("reading index=", i)
+    # maxwordlen added for getting word length(어절 내의 최대 단어 수)
+    return sentences, pos, rels, heads, maxlen, maxwordlen
 
 
 def to_one_hot(y, n_dims=None):
@@ -192,7 +281,9 @@ def init_lstm_weights(lstm, initializer=orthogonal_):
 
 
 def get_sequence_length(data, pad_id, axis=1):
-    return np.sum(np.not_equal(data, pad_id), axis=axis)
+    sequence_length = np.sum(np.not_equal(data[:,:,0], pad_id), axis=axis)
+    #print(f"sequence_length={sequence_length}")
+    return sequence_length
 
 
 def print_out(s, f=None, new_line=True):
