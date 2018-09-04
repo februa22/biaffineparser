@@ -303,7 +303,7 @@ class Model(object):
         return self._run_session(sentences_indexed, pos_indexed)
 
     def save(self):
-        self.saver.save(self.sess, self.hparams.out_dir)
+        self.saver.save(self.sess, os.path.join(self.hparams.out_dir, 'ckpt'))
 
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
