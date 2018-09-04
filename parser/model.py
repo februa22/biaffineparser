@@ -1,46 +1,63 @@
 # -*- coding: utf-8 -*-
 import pdb
 
-import numpy as np
 import tensorflow as tf
-from sklearn.utils import shuffle
 from tensorflow.python import debug as tf_debug
 
 from . import utils
-from .progress_bar import Progbar
 
 
 class Model(object):
-    def __init__(self, hparams, word_vocab_table, pos_vocab_table, rels_vocab_table, heads_vocab_table,
-                 word_embedding, pos_embedding):
+    def __init__(self, hparams, word_vocab_table, pos_vocab_table,
+                 rels_vocab_table, heads_vocab_table, word_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
-        print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
-        self.hparams = hparams
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
-        self.pos_embedding = pos_embedding
+
+        self.hparams = hparams
         self.n_classes = len(rels_vocab_table)
 
+        self.word_pad_id = word_vocab_table[utils.GLOBAL_PAD_SYMBOL]
         self.head_pad_id = tf.constant(
             heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
         self.rel_pad_id = tf.constant(
             rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
-        self.global_step = tf.Variable(0, trainable=False, name='global_step')
 
-        self.build()
-        self.initializer = tf.global_variables_initializer()
         self.train_mode = tf.contrib.learn.ModeKeys.TRAIN
         self.eval_mode = tf.contrib.learn.ModeKeys.EVAL
+        self.infer_mode = tf.contrib.learn.ModeKeys.INFER
 
+        self._build_graph()
+
+    def _build_graph(self):
+        self.create_placeholders()
+        self.create_embedding_layer()
+        self.create_lstm_layer()
+        self.create_mlp_layer()
+        self.create_biaffine_layer()
+        self.create_loss_op()
+        self.create_train_op()
+        self.create_uas_and_las_op()
+
+    def build(self):
+        self.global_step = tf.Variable(0, trainable=False, name='global_step')
+
+        # Check out_dir
+        if not tf.gfile.Exists(self.hparams.out_dir):
+            utils.print_out(
+                f"# Creating output directory {self.hparams.out_dir} ...")
+            tf.gfile.MakeDirs(self.hparams.out_dir)
+
+        self.initializer = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
 
         config_proto = tf.ConfigProto(
@@ -54,20 +71,10 @@ class Model(object):
         self.sess.run(self.initializer)
         self.merge_summaries_and_create_writer(self.sess)
 
-    def build(self):
-        self.create_placeholders()
-        self.create_embedding_layer()
-        self.create_lstm_layer()
-        self.create_mlp_layer()
-        self.create_biaffine_layer()
-        self.create_loss_op()
-        self.create_train_op()
-        self.create_uas_and_las_op()
-        # Check out_dir
-        if not tf.gfile.Exists(self.hparams.out_dir):
-            utils.print_out(
-                f"# Creating output directory {self.hparams.out_dir} ...")
-            tf.gfile.MakeDirs(self.hparams.out_dir)
+    def new_sess_and_restore(self, save_path):
+        self.sess = tf.Session()
+        saver = tf.train.Saver()
+        saver.restore(self.sess, save_path)
 
     def create_placeholders(self):
         self.word_ids = tf.placeholder(
@@ -84,12 +91,17 @@ class Model(object):
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
             _word_embedding = tf.Variable(
-                self.word_embedding, name="_word_embedding", dtype=tf.float32)
+                self.word_embedding, trainable=False,
+                name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
 
+            # _pos_embedding = tf.Variable(
+            #     self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
             _pos_embedding = tf.Variable(
-                self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
+                tf.random_uniform(
+                    [len(self.pos_vocab_table), self.hparams.pos_embedding_size], -1.0, 1.0),
+                name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
 
@@ -196,17 +208,23 @@ class Model(object):
         """ UAS and LAS"""
         with tf.variable_scope('uas'):
             sequence_mask = tf.sequence_mask(self.sequence_length)
-            preds = tf.argmax(self.arc_logits, axis=-1, output_type=tf.int32)
-            head_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
-                tf.boolean_mask(self.head_ids[:, 1:], sequence_mask[:, 1:]))
+            self.head_preds = tf.argmax(
+                self.arc_logits, axis=-1, output_type=tf.int32)
+            self.masked_head_preds = tf.boolean_mask(
+                self.head_preds[:, 1:], sequence_mask[:, 1:])
+            masked_head_ids = tf.boolean_mask(
+                self.head_ids[:, 1:], sequence_mask[:, 1:])
+            head_correct = tf.equal(self.masked_head_preds, masked_head_ids)
             self.uas = tf.reduce_mean(tf.cast(head_correct, tf.float32))
 
         with tf.variable_scope('las'):
-            preds = tf.argmax(self.label_logits, axis=-1, output_type=tf.int32)
-            rel_correct = tf.equal(
-                tf.boolean_mask(preds[:, 1:], sequence_mask[:, 1:]),
-                tf.boolean_mask(self.rel_ids[:, 1:], sequence_mask[:, 1:]))
+            self.rel_preds = tf.argmax(
+                self.label_logits, axis=-1, output_type=tf.int32)
+            self.masked_rel_preds = tf.boolean_mask(
+                self.rel_preds[:, 1:], sequence_mask[:, 1:])
+            masked_rel_ids = tf.boolean_mask(
+                self.rel_ids[:, 1:], sequence_mask[:, 1:])
+            rel_correct = tf.equal(self.masked_rel_preds, masked_rel_ids)
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
             self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.float32))
 
@@ -223,38 +241,52 @@ class Model(object):
             value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
-    def train_or_eval(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed, mode):
+    def _run_session(self, sentences_indexed, pos_indexed,
+                     heads_indexed=None, rels_indexed=None):
         sequence_length = utils.get_sequence_length(
-            sentences_indexed, self.word_vocab_table[utils.GLOBAL_PAD_SYMBOL])
+            sentences_indexed, self.word_pad_id)
 
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,
-            self.head_ids: heads_indexed,
-            self.rel_ids: rels_indexed,
             self.sequence_length: sequence_length,
         }
 
-        if mode == tf.contrib.learn.ModeKeys.TRAIN:
+        if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
+            feed_dict[self.head_ids] = heads_indexed
+            feed_dict[self.rel_ids] = rels_indexed
             fetches = [self.update, self.train_loss,
                        self.uas, self.las, self.global_step]
-            step_result = self.sess.run(fetches, feed_dict)
-            (_, loss, uas, las, global_step) = step_result
-            # print(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
-        elif mode == tf.contrib.learn.ModeKeys.EVAL:
-            fetches = [self.train_loss, self.uas, self.las, self.global_step]
-            step_result = self.sess.run(fetches, feed_dict)
-            (loss, uas, las, global_step) = step_result
-            # print(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
-        return loss, uas, las, global_step
+            return self.sess.run(fetches, feed_dict)
+            # utils.print_out(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
+        elif self.mode == tf.contrib.learn.ModeKeys.EVAL:
+            feed_dict[self.head_ids] = heads_indexed
+            feed_dict[self.rel_ids] = rels_indexed
+            fetches = [self.train_loss, self.uas, self.las,
+                       self.masked_head_preds, self.masked_rel_preds,
+                       self.sequence_length]
+            return self.sess.run(fetches, feed_dict)
+            # utils.print_out(f'\n # loss={loss}, uas={uas}, las={las}, global_step={global_step}')
+        elif self.mode == tf.contrib.learn.ModeKeys.INFER:
+            fetches = [self.masked_head_preds, self.masked_rel_preds]
+            return self.sess.run(fetches, feed_dict)
 
-    def train_step(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed):
-        return self.train_or_eval(
-            sentences_indexed, pos_indexed, heads_indexed, rels_indexed, self.train_mode)
+    def train_step(self, data):
+        self.mode = self.train_mode
+        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, pos_indexed,
+                                 heads_indexed, rels_indexed)
 
-    def eval_step(self, sentences_indexed, pos_indexed, heads_indexed, rels_indexed):
-        return self.train_or_eval(
-            sentences_indexed, pos_indexed, heads_indexed, rels_indexed, self.eval_mode)
+    def eval_step(self, data):
+        self.mode = self.eval_mode
+        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, pos_indexed,
+                                 heads_indexed, rels_indexed)
+
+    def inference_step(self, data):
+        self.mode = self.infer_mode
+        (sentences_indexed, pos_indexed) = data
+        return self._run_session(sentences_indexed, pos_indexed)
 
     def save(self):
         self.saver.save(self.sess, self.hparams.out_dir)

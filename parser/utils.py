@@ -92,6 +92,16 @@ def load_dataset(filepath):
     return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
 
+def save_vocab(vocab, filepath):
+    print_out(f'Save vocab... {filepath}')
+    pickle.dump(vocab, open(filepath, 'wb'))
+
+
+def load_vocab(filepath):
+    print_out(f'Load vocab... {filepath}')
+    return pickle.load(open(filepath, 'rb'))
+
+
 def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=False):
     """
     Index and pad sequences according to vocab and max len
@@ -148,7 +158,7 @@ def cast_safe_list(elem):
 
 
 def get_dataset_multiindex(filepath):
-
+    print_out(f'Load dataset... {filepath}')
     #dataset = pd.read_csv(filepath, sep=',')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
@@ -172,6 +182,18 @@ def get_dataset_multiindex(filepath):
         if tempsentlen > maxlen:
             maxlen = tempsentlen
     return sentences, pos, rels, heads, maxlen
+
+
+def replace_and_save_dataset(input_file, heads, rels, output_file):
+    print_out(f'Replace dataset... {input_file}')
+    dataset = pd.read_csv(input_file)
+    dataset = dataset.set_index(['s'])
+    for i in dataset.index.unique():
+        dataset.loc[i, 'f'] = rels[i]
+        dataset.loc[i, 'g'] = heads[i]
+    
+    print_out(f'Save dataset... {output_file}')
+    dataset.to_csv(output_file, encoding='utf-8')
 
 
 def to_one_hot(y, n_dims=None):
