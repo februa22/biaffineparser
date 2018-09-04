@@ -32,6 +32,10 @@ class Model(object):
         self.rel_pad_id = tf.constant(
             rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
 
+        self.embedding_dropout = 0.0
+        self.lstm_dropout = 0.0
+        self.mlp_dropout = 0.0
+
         self.train_mode = tf.contrib.learn.ModeKeys.TRAIN
         self.eval_mode = tf.contrib.learn.ModeKeys.EVAL
         self.infer_mode = tf.contrib.learn.ModeKeys.INFER
@@ -95,6 +99,9 @@ class Model(object):
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
+            if self.embedding_dropout > 0.0:
+                keep_prob = 1.0 - self.embedding_dropout
+                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
             # _pos_embedding = tf.Variable(
             #     self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
@@ -104,6 +111,9 @@ class Model(object):
                 name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
+            if self.embedding_dropout > 0.0:
+                keep_prob = 1.0 - self.embedding_dropout
+                pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
                 [word_embedding, pos_embedding], axis=-1)
@@ -111,7 +121,7 @@ class Model(object):
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
             self.output = add_stacked_lstm_layers(
-                self.hparams, self.embeddings, self.sequence_length)
+                self.hparams, self.embeddings, self.sequence_length, self.lstm_dropout)
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
@@ -121,7 +131,7 @@ class Model(object):
             # MLP
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
-                self.hparams, self.output)
+                self.hparams, self.output, self.mlp_dropout)
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim]
             self.h_arc_head = tf.reshape(
@@ -243,6 +253,10 @@ class Model(object):
 
     def _run_session(self, sentences_indexed, pos_indexed,
                      heads_indexed=None, rels_indexed=None):
+        self.embedding_dropout = self.hparams.embedding_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
+        self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
+        self.mlp_dropout = self.hparams.mlp_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
+
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
 
@@ -292,15 +306,22 @@ class Model(object):
         self.saver.save(self.sess, self.hparams.out_dir)
 
 
-def add_stacked_lstm_layers(hparams, word_embedding, lengths):
+def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
     cell = tf.contrib.rnn.LSTMCell
     cells_fw = [cell(hparams.lstm_hidden_size)
                 for _ in range(hparams.num_lstm_layers)]
     cells_bw = [cell(hparams.lstm_hidden_size)
                 for _ in range(hparams.num_lstm_layers)]
-    if hparams.dropout > 0.0:
-        cells_fw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_fw]
-        cells_bw = [tf.contrib.rnn.DropoutWrapper(cell) for cell in cells_bw]
+    if dropout > 0.0:
+        keep_prob = 1.0 - dropout
+        cells_fw = [tf.nn.rnn_cell.DropoutWrapper(
+            cell,
+            input_keep_prob=keep_prob,
+            state_keep_prob=keep_prob) for cell in cells_fw]
+        cells_bw = [tf.nn.rnn_cell.DropoutWrapper(
+            cell,
+            input_keep_prob=keep_prob,
+            state_keep_prob=keep_prob) for cell in cells_bw]
     outputs, _, _ = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
         cells_fw=cells_fw,
         cells_bw=cells_bw,
@@ -322,41 +343,41 @@ def create_weight_and_bias(n_input, n_output):
     return weights, biases
 
 
-def multilayer_perceptron(x, weights, biases):
+def multilayer_perceptron(x, weights, biases, dropout):
     layer_1 = tf.add(tf.matmul(x, weights['w1']), biases['b1'])
     layer_1 = tf.nn.relu(layer_1)
-    layer_2 = tf.add(tf.matmul(layer_1, weights['w2']), biases['b2'])
-    layer_2 = tf.nn.relu(layer_2)
-    return layer_2
+    if dropout > 0.0:
+        keep_prob = 1.0 - dropout
+        layer_1 = tf.nn.dropout(layer_1, keep_prob)
+    return layer_1
 
 
-def mlp_with_scope(x, n_input, n_output, scope):
+def mlp_with_scope(x, n_input, n_output, dropout, scope):
     with tf.variable_scope(scope):
         weights, biases = create_weight_and_bias(n_input, n_output)
-        h = multilayer_perceptron(x, weights, biases)
+        h = multilayer_perceptron(x, weights, biases, dropout)
     return h
 
 
-def mlp_for_arc(hparams, x):
+def mlp_for_arc(hparams, x, dropout):
     h_arc_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, 'arc_head')
+        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, dropout, 'arc_head')
     h_arc_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, 'arc_dep')
+        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, dropout, 'arc_dep')
     return h_arc_head, h_arc_dep
 
 
-def mlp_for_label(hparams, x):
+def mlp_for_label(hparams, x, dropout):
     h_label_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, 'label_head')
+        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, dropout, 'label_head')
     h_label_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, 'label_dep')
+        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, dropout, 'label_dep')
     return h_label_head, h_label_dep
 
 
-def mlp_for_arc_and_label(hparams, x):
-    x = tf.nn.dropout(x, hparams.mlp_dropout)
-    h_arc_head, h_arc_dep = mlp_for_arc(hparams, x)
-    h_label_head, h_label_dep = mlp_for_label(hparams, x)
+def mlp_for_arc_and_label(hparams, x, dropout):
+    h_arc_head, h_arc_dep = mlp_for_arc(hparams, x, dropout)
+    h_label_head, h_label_dep = mlp_for_label(hparams, x, dropout)
     return h_arc_head, h_arc_dep, h_label_head, h_label_dep
 
 

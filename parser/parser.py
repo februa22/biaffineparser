@@ -32,10 +32,10 @@ def add_arguments(parser):
                         help='Number of hidden units for MLP of arc')
     parser.add_argument('--label_mlp_units', type=int, default=100,
                         help='Number of hidden units for MLP of label')
-    parser.add_argument('--dropout', type=float, default=.33,
-                        help='Dropout rate')
     parser.add_argument('--embedding_dropout', type=float, default=.33,
                         help='Dropout rate for embedding')
+    parser.add_argument('--lstm_dropout', type=float, default=.33,
+                        help='Dropout rate for LSTM')
     parser.add_argument('--mlp_dropout', type=float, default=.33,
                         help='Dropout rate for MLP')
     parser.add_argument('--num_lstm_layers', type=int, default=3,
@@ -168,15 +168,6 @@ def main(flags):
             print('rels', rels_indexed[i])
             print('heads', h)
 
-    utils.save_vocab(words_dict, os.path.join(
-        flags.out_dir, flags.word_vocab_name))
-    utils.save_vocab(pos_features_dict, os.path.join(
-        flags.out_dir, flags.pos_vocab_name))
-    utils.save_vocab(rels_features_dict, os.path.join(
-        flags.out_dir, flags.rel_vocab_name))
-    utils.save_vocab(heads_features_dict, os.path.join(
-        flags.out_dir, flags.head_vocab_name))
-
     # embed vadliation(dev) dataset
     val_sentences, val_pos, val_rels, val_heads, val_maxlen = utils.get_dataset_multiindex(
         flags.dev_filename)
@@ -198,6 +189,15 @@ def main(flags):
     model = Model(flags, words_dict, pos_features_dict,
                   rels_features_dict, heads_features_dict, word_embedding)
     model.build()
+
+    utils.save_vocab(words_dict, os.path.join(
+        flags.out_dir, flags.word_vocab_name))
+    utils.save_vocab(pos_features_dict, os.path.join(
+        flags.out_dir, flags.pos_vocab_name))
+    utils.save_vocab(rels_features_dict, os.path.join(
+        flags.out_dir, flags.rel_vocab_name))
+    utils.save_vocab(heads_features_dict, os.path.join(
+        flags.out_dir, flags.head_vocab_name))
 
     # train
     for epoch in range(flags.num_train_epochs):

@@ -159,7 +159,7 @@ def cast_safe_list(elem):
 
 def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
-    #dataset = pd.read_csv(filepath, sep=',')
+    # dataset = pd.read_csv(filepath, sep=',')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
     dataset['w'] = dataset['w'].apply(lambda x: str(x).lower())
