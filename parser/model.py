@@ -184,7 +184,7 @@ class Model(object):
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
         # computing loss for labels
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        loss = tf.nn.softmax_cross_entropy_with_logits(
             logits=logits, labels=gold_labels)
         mask = tf.sequence_mask(sequence_length)
         # slice loss and mask for getting rid of root_word => [:, 1:]
@@ -194,12 +194,16 @@ class Model(object):
 
     # loss logit
     def create_loss_op(self):
-        # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
-        loss_heads = self.compute_loss(
-            self.arc_logits, self.head_ids, self.sequence_length)
-        loss_rels = self.compute_loss(
-            self.label_logits, self.rel_ids, self.sequence_length)
-        self.train_loss = loss_heads + loss_rels
+        with tf.variable_scope('loss'):
+            max_len = tf.reduce_max(self.sequence_length)
+            gold_heads = tf.one_hot(self.head_ids, max_len)
+            gold_rels = tf.one_hot(self.rel_ids, self.n_classes)
+
+            loss_heads = self.compute_loss(
+                self.arc_logits, gold_heads, self.sequence_length)
+            loss_rels = self.compute_loss(
+                self.label_logits, gold_rels, self.sequence_length)
+            self.train_loss = loss_heads + loss_rels
 
     def create_train_op(self):
         if self.hparams.optimizer == 'sgd':
