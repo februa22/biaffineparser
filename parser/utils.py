@@ -14,6 +14,7 @@ import csv
 
 #for debugging
 import pdb
+import os
 
 GLOBAL_PAD_SYMBOL = '<PAD>'
 GLOBAL_UNK_SYMBOL = '<UNK>'
@@ -73,17 +74,20 @@ class VocabSelector:
     def transform(self, X):
         return np.asarray([self.__look_up(x) for x in X], dtype=np.int32)
 
-'''
-#TODO for loading existing pkl file
-def load_dataset_multiindex(filepath):
-    (sentences, pos, rels, heads, maxlen, maxwordlen) = pickle.load(open(filepath, 'rb'))
-    return (sentences, pos, rels, heads, maxlen, maxwordlen)
-'''
-
 def load_dataset(filepath):
     
-    (sentences, pos, rels, heads, maxlen, maxwordlen) = get_dataset_multiindex(filepath)
-    
+    #check dataset_multiindex and save or load
+    dataset_multiindex_filepath = 'embeddings/dataset_multiindex.pkl'
+    if os.path.isfile(dataset_multiindex_filepath):
+        print('dataset_multiindex_file exists, loading dataset_multiindex_file...')
+        (sentences, pos, rels, heads, maxlen, maxwordlen) = load_vocab(dataset_multiindex_filepath)
+    else:
+        print('Creating dataset_multiindex_file...')
+        (sentences, pos, rels, heads, maxlen, maxwordlen) = get_dataset_multiindex(filepath)
+        print('Saving dataset_multiindex_file...')
+        save_vocab((sentences, pos, rels, heads, maxlen, maxwordlen), dataset_multiindex_filepath)
+    #pdb.set_trace()
+
     _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0, return_embeddings=False)
     #update maxlen when maxlen is less or equal to number of head_features (head_vocab)
     if maxlen < len(heads_features_dict):
@@ -107,22 +111,16 @@ def load_dataset(filepath):
     sentences_indexed = get_indexed_sequences(sentences, merged_words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
     
     # dumping dictionaries
-    print('dumping words_dict')
+    print('dumping merged_words_dict')
     with open('embeddings/merged_words_dict.json', 'w') as f:
         json.dump(merged_words_dict, f, indent=4, ensure_ascii=False)
-        print('dumping pos_features_dict')
-    with open('embeddings/pos_features_dict.pkl', 'wb') as f:
-        pickle.dump(pos_features_dict, f)
+    print('dumping pos_features_dict')
     with open('embeddings/pos_features_dict.json', 'w') as f:
         json.dump(pos_features_dict, f, indent=4)
     print('dumping heads_features_dict')
-    with open('embeddings/heads_features_dict.pkl', 'wb') as f:
-        pickle.dump(heads_features_dict, f)
     with open('embeddings/heads_features_dict.json', 'w') as f:
         json.dump(heads_features_dict, f, indent=4)
     print('dumping rels_features_dict')
-    with open('embeddings/rels_features_dict.pkl', 'wb') as f:
-        pickle.dump(rels_features_dict, f)
     with open('embeddings/rels_features_dict.json', 'w') as f:
         json.dump(rels_features_dict, f, indent=4)
     return sentences_indexed, pos_indexed, heads_padded, rels_indexed, merged_words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
@@ -159,8 +157,9 @@ def load_glove_model(glove_file_path, words_dict):
 
 def save_vocab(vocab, filepath):
     print_out(f'Save vocab... {filepath}')
+    #with open(filepath, 'wb') as f:
+    #    pickle.dump(vocab, f)
     pickle.dump(vocab, open(filepath, 'wb'))
-
 
 def load_vocab(filepath):
     print_out(f'Load vocab... {filepath}')
@@ -184,7 +183,7 @@ def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=Fals
         for i, sequence in enumerate(sequences):
             for j, s in enumerate(sequence):
                 #print(sequence)
-                for k, v in enumerate(s.strip().split('|')):
+                for k, v in enumerate(str(s).strip().split('|')):
                     if k >= maxwordl:
                         break
                     if just_pad:
