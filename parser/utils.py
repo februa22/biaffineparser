@@ -73,10 +73,16 @@ class VocabSelector:
     def transform(self, X):
         return np.asarray([self.__look_up(x) for x in X], dtype=np.int32)
 
+'''
+#TODO for loading existing pkl file
+def load_dataset_multiindex(filepath):
+    (sentences, pos, rels, heads, maxlen, maxwordlen) = pickle.load(open(filepath, 'rb'))
+    return (sentences, pos, rels, heads, maxlen, maxwordlen)
+'''
 
 def load_dataset(filepath):
     
-    sentences, pos, rels, heads, maxlen, maxwordlen = get_dataset_multiindex(filepath)
+    (sentences, pos, rels, heads, maxlen, maxwordlen) = get_dataset_multiindex(filepath)
     
     _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0, return_embeddings=False)
     #update maxlen when maxlen is less or equal to number of head_features (head_vocab)
@@ -242,8 +248,8 @@ def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
     # Only preprocess I make is lowercase
-    dataset['w'] = dataset['w'].apply(lambda x: str(x).lower())
-    dataset = dataset.set_index(['s'])
+    dataset['eoj'] = dataset['eoj'].apply(lambda x: str(x).lower())
+    dataset = dataset.set_index(['sent_id'])
     sentences = []
     pos = []
     rels = []
@@ -251,10 +257,10 @@ def get_dataset_multiindex(filepath):
     maxlen = 0
     maxwordlen = 0
     for i in dataset.index.unique():
-        temp_sent = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['w'])
-        temp_pos = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['x'])
-        temp_rels = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['f'])
-        temp_heads = [0] + cast_safe_list(dataset.loc[i]['g'])
+        temp_sent = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['eoj'])
+        temp_pos = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['pos'])
+        temp_rels = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['label'])
+        temp_heads = [0] + cast_safe_list(dataset.loc[i]['head_id'])
         sentences.append(temp_sent)
         pos.append(temp_pos)
         rels.append(temp_rels)

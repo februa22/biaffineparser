@@ -3,9 +3,9 @@
 #### Set your arguments here ####
 ############## START ###################
 train_input_file=raw/sejong.ppos2.train.utf8.txt
-train_output_file=raw/sejong.train.csv
+train_output_file=data/sejong.train.csv
 dev_input_file=raw/sejong.ppos2.test.utf8.txt
-dev_output_file=raw/sejong.test.csv
+dev_output_file=data/sejong.test.csv
 ############## END #####################
 
 #exit 0
