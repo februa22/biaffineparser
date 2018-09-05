@@ -8,6 +8,7 @@ out_dir=parser/parser_model # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
+batch_size=128  # Batch size.
 ############## END #####################
 
 echo "train"
@@ -17,4 +18,5 @@ python -m parser.parser \
     --out_dir=${out_dir}  \
     --device=${device} \
     --debug=${debug} \
-    --num_train_epochs=${num_train_epochs}
+    --num_train_epochs=${num_train_epochs} \
+    --batch_size=${batch_size}

@@ -187,7 +187,7 @@ class Model(object):
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
         # computing loss for labels
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        loss = tf.nn.softmax_cross_entropy_with_logits(
             logits=logits, labels=gold_labels)
         mask = tf.sequence_mask(sequence_length)
         # slice loss and mask for getting rid of root_word => [:, 1:]
@@ -197,11 +197,14 @@ class Model(object):
 
     # loss logit
     def create_loss_op(self):
-        # TODO(jongseong): tf.summary.scalar('train/loss', self.loss)
+        max_len = tf.reduce_max(self.sequence_length)
+        gold_heads = tf.one_hot(self.head_ids, max_len)
         loss_heads = self.compute_loss(
-            self.arc_logits, self.head_ids, self.sequence_length)
+            self.arc_logits, gold_heads, self.sequence_length)
+
+        gold_rels = tf.one_hot(self.rel_ids, self.n_classes)
         loss_rels = self.compute_loss(
-            self.label_logits, self.rel_ids, self.sequence_length)
+            self.label_logits, gold_rels, self.sequence_length)
         self.train_loss = loss_heads + loss_rels
 
     def create_train_op(self):
@@ -262,6 +265,12 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
+
+        max_len = max(sequence_length)
+        sentences_indexed = sentences_indexed[:, :max_len]
+        pos_indexed = pos_indexed[:, :max_len]
+        heads_indexed = heads_indexed[:, :max_len] if heads_indexed is not None else None
+        rels_indexed = rels_indexed[:, :max_len] if rels_indexed is not None else None
 
         feed_dict = {
             self.word_ids: sentences_indexed,
@@ -337,11 +346,9 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
-        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32),
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
-        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
     }
     return weights, biases
 
