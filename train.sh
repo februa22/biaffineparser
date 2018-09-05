@@ -8,7 +8,7 @@ out_dir=parser/parser_model # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
-batch_size=128  # Batch size.
+batch_size=2  # Batch size.
 ############## END #####################
 
 echo "train"
