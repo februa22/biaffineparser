@@ -134,7 +134,7 @@ def evaluate_and_write_predictions(flags, model, data, inference_input_file):
                                    os.path.join(flags.out_dir, 'dev_prediction.csv'))
 
 
-def main(flags):
+def main(flags, log_f):
     # loading trainind dataset and embed
     (sentences_indexed,  # (12543, 160)
         pos_indexed,  # (12543, 160)
@@ -150,26 +150,26 @@ def main(flags):
      ) = utils.load_dataset(flags.train_filename)
     #pdb.set_trace()
 
-    print('#'*30)
-    print(f'sentences_indexed {sentences_indexed.shape}')
-    print(f'pos_indexed {pos_indexed.shape}')
-    print(f'rels_indexed {rels_indexed.shape}')
-    print(f'heads_padded {heads_padded.shape}')
-    print('#'*30)
+    utils.print_out('#'*30, log_f)
+    utils.print_out(f'sentences_indexed {sentences_indexed.shape}', log_f)
+    utils.print_out(f'pos_indexed {pos_indexed.shape}', log_f)
+    utils.print_out(f'rels_indexed {rels_indexed.shape}', log_f)
+    utils.print_out(f'heads_padded {heads_padded.shape}', log_f)
+    utils.print_out('#'*30, log_f)
 
     # sanity check
     for i, h in enumerate(heads_padded):
         if len(h) != maxlen:
-            print(h)
-            print('ERROR IN PADDING HEADS')
+            utils.print_out(h, log_f)
+            utils.print_out('ERROR IN PADDING HEADS', log_f)
         if len(rels_indexed[i]) != maxlen:
-            print(rels_indexed[i])
-            print('ERROR IN PADDING RELATIONS')
+            utils.print_out(rels_indexed[i], log_f)
+            utils.print_out('ERROR IN PADDING RELATIONS', log_f)
         if len(np.not_equal(rels_indexed[i], rels_features_dict['<PAD>'])) != len(
                 np.not_equal(h, heads_features_dict['<PAD>'])):
-            print('ERROR IN LEN OF')
-            print('rels', rels_indexed[i])
-            print('heads', h)
+            utils.print_out('ERROR IN LEN OF', log_f)
+            utils.print_out(f'rels {rels_indexed[i]}', log_f)
+            utils.print_out(f'heads {h}', log_f)
 
     # embed vadliation(dev) dataset
     val_sentences, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
@@ -242,15 +242,19 @@ def main(flags):
             ('eval_las', eval_las),
         ])
         print('\n')
+        utils.print_out(f'epoch: {int(epoch)} \
+            - loss: {loss} - uas: {uas} - las: {las} \
+            - eval_loss: {eval_loss} - eval_uas: {eval_uas} \
+            - eval_las: {eval_las}', log_f)
         # save the best model or early stopping
         if eval_uas > best_eval_uas:
             model.save(os.path.join(flags.out_dir, 'parser.ckpt'))
             best_eval_uas = eval_uas
             stop_count = 0
-            utils.print_out('# new best UAS!\n')
+            utils.print_out('# new best UAS!', log_f)
         elif stop_count >= 20:
             utils.print_out(f'# early stopping {stop_count} \
-                            epochs without improvement\n')
+                            epochs without improvement', log_f)
             break
         else:
             stop_count += 1
@@ -261,8 +265,11 @@ if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)
     FLAGS = argparser.parse_args()
-    print('#'*30)
-    print(FLAGS)
-    print('#'*30)
-    main(FLAGS)
-    print('Done')
+    log_filepath = os.path.join(FLAGS.out_dir, 'log.txt')
+    log_file = open(log_filepath, 'wb')
+    utils.print_out('#'*30, log_file)
+    utils.print_out(str(FLAGS), log_file)
+    utils.print_out('#'*30, log_file)
+    main(FLAGS, log_file)
+    log_file.close()
+    utils.print_out('Done', log_file)

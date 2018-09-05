@@ -4,12 +4,14 @@
 ############## START ###################
 train_filename=data/sejong.train.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
-out_dir=parser/parser_model # Store log/model files.
+out_dir=parser/model_log # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
 batch_size=128  # Batch size.
 ############## END #####################
+
+[ -d foo ] || mkdir ${out_dir}
 
 echo "train"
 python -m parser.parser \
