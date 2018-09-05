@@ -274,7 +274,8 @@ def get_dataset_multiindex(filepath):
 
 def replace_and_save_dataset(input_file, heads, rels, output_file):
     print_out(f'Replace dataset... {input_file}')
-    dataset = pd.read_csv(input_file)
+    # dataset = pd.read_csv(input_file)
+    dataset = pd.read_csv(input_file, sep='\t', quoting=csv.QUOTE_NONE)
     dataset = dataset.set_index(['s'])
     for i in dataset.index.unique():
         dataset.loc[i, 'f'] = rels[i]
