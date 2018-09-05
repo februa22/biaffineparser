@@ -263,8 +263,10 @@ class Model(object):
         max_len = max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_len]
         pos_indexed = pos_indexed[:, :max_len]
-        heads_indexed = heads_indexed[:, :max_len] if heads_indexed else None
-        rels_indexed = rels_indexed[:, :max_len] if rels_indexed else None
+        if heads_indexed:
+            heads_indexed = heads_indexed[:, :max_len]
+        if rels_indexed:
+            rels_indexed = rels_indexed[:, :max_len]
 
         feed_dict = {
             self.word_ids: sentences_indexed,
