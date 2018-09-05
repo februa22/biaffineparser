@@ -260,6 +260,12 @@ class Model(object):
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
 
+        max_len = max(sequence_length)
+        sentences_indexed = sentences_indexed[:, :max_len]
+        pos_indexed = pos_indexed[:, :max_len]
+        heads_indexed = heads_indexed[:, :max_len] if heads_indexed else None
+        rels_indexed = rels_indexed[:, :max_len] if rels_indexed else None
+
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,
@@ -334,11 +340,9 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
-        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32),
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
-        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
     }
     return weights, biases
 
