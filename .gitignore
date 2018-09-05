@@ -214,3 +214,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+#ignore pickle file
+*.pkl

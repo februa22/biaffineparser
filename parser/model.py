@@ -96,7 +96,7 @@ class Model(object):
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
             _word_embedding = tf.Variable(
-                self.word_embedding, trainable=False,
+                self.word_embedding, trainable=True,
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
@@ -181,8 +181,8 @@ class Model(object):
             seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
-            self.label_logits = tf.gather_nd(
-                full_label_logits, indices=indices)
+            #pdb.set_trace()
+            self.label_logits = tf.gather_nd(full_label_logits, indices=indices)
 
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
@@ -201,7 +201,6 @@ class Model(object):
         gold_heads = tf.one_hot(self.head_ids, max_len)
         loss_heads = self.compute_loss(
             self.arc_logits, gold_heads, self.sequence_length)
-
         gold_rels = tf.one_hot(self.rel_ids, self.n_classes)
         loss_rels = self.compute_loss(
             self.label_logits, gold_rels, self.sequence_length)
@@ -271,7 +270,7 @@ class Model(object):
         pos_indexed = pos_indexed[:, :max_len]
         heads_indexed = heads_indexed[:, :max_len] if heads_indexed is not None else None
         rels_indexed = rels_indexed[:, :max_len] if rels_indexed is not None else None
-
+        
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,

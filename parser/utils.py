@@ -86,7 +86,6 @@ def load_dataset(filepath):
         (sentences, pos, rels, heads, maxlen, maxwordlen) = get_dataset_multiindex(filepath)
         print('Saving dataset_multiindex_file...')
         save_vocab((sentences, pos, rels, heads, maxlen, maxwordlen), dataset_multiindex_filepath)
-    #pdb.set_trace()
 
     _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0, return_embeddings=False)
     #update maxlen when maxlen is less or equal to number of head_features (head_vocab)
@@ -143,7 +142,9 @@ def load_glove_model(glove_file_path, words_dict):
             embedding_size = len(embedding)
     
     #create empty embedding matrix with zeros
-    embedding_matrix = np.zeros((len(words_dict), embedding_size))
+    #create random embedding matrix for initialization
+    embedding_matrix = np.random.rand(len(words_dict), embedding_size)
+    #embedding_matrix = np.zeros((len(words_dict), embedding_size))
     for key, value in words_dict.items():
         word_vocab = key
         word_index = value
@@ -151,8 +152,11 @@ def load_glove_model(glove_file_path, words_dict):
         # add word_vector to matrix
         if word_vector is not None:
             embedding_matrix[word_index] = word_vector
-    unk_index = words_dict['<UNK>']
-    embedding_matrix[unk_index] = np.random.rand(embedding_size)
+    #unk_index = words_dict['<UNK>']
+    #embedding_matrix[unk_index] = np.random.rand(embedding_size)
+    #replace padding in embedding matrix into np.zeros
+    pad_index = words_dict['<PAD>']
+    embedding_matrix[pad_index] = np.zeros(embedding_size)
     return embedding_matrix, words_dict
 
 def save_vocab(vocab, filepath):
@@ -273,7 +277,7 @@ def get_dataset_multiindex(filepath):
             maxwordlen = tempwordlen
         if i % 5000 == 0:
             print("reading index=", i)
-    # maxwordlen added for getting word length(어절 내의 최대 단어 수)
+    #maxwordlen added for getting word length(어절 내의 최대 단어 수)
     return sentences, pos, rels, heads, maxlen, maxwordlen
 
 
