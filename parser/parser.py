@@ -11,6 +11,8 @@ from . import utils
 from .model import Model
 from .progress_bar import Progbar
 
+import json
+
 FLAGS = None
 
 
