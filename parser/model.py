@@ -42,6 +42,8 @@ class Model(object):
         self.eval_mode = tf.contrib.learn.ModeKeys.EVAL
         self.infer_mode = tf.contrib.learn.ModeKeys.INFER
 
+        self.global_step = tf.Variable(0, trainable=False, name='global_step') #
+
         self._build_graph()
 
     def _build_graph(self):
@@ -55,7 +57,7 @@ class Model(object):
         self.create_uas_and_las_op()
 
     def build(self):
-        self.global_step = tf.Variable(0, trainable=False, name='global_step')
+        #self.global_step = tf.Variable(0, trainable=False, name='global_step')
 
         # Check out_dir
         if not tf.gfile.Exists(self.hparams.out_dir):
