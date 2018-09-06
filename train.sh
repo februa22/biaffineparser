@@ -10,11 +10,15 @@ debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
 batch_size=128  # Batch size.
 word_embed_size=200  # The embedding dimension for the word's embedding.
-word_embed_file=embeddings/words.pos.vec  # Use the pre-trained embedding. If not provided, use random values.
-pos_embed_file=embeddings/words.tag.vec  # Use the pre-trained embedding. If not provided, use random values.
+word_embed_file=embeddings/words.pos.original.vec  # Use the pre-trained embedding. If not provided, use random values.
+pos_embed_file=embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
+
+#export CUDA_VISIBLE_DEVICES
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
 echo "train"
 python -m parser.parser \
