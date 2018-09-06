@@ -188,7 +188,7 @@ class Model(object):
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
         # computing loss for labels
-        loss = tf.nn.softmax_cross_entropy_with_logits(
+        loss = tf.nn.softmax_cross_entropy_with_logits_v2(
             logits=logits, labels=gold_labels)
         mask = tf.sequence_mask(sequence_length)
         # slice loss and mask for getting rid of root_word => [:, 1:]
