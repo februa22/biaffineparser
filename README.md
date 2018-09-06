@@ -1,17 +1,27 @@
 # biaffineparser
+
 Deep Biaffine Parser implementation as in https://arxiv.org/abs/1611.01734
-Since I have no access to CoNLL09 data or the Penn Treebank data, I trained it on the publicly available CoNLL17 dataset. Here I uploaded a csv version converted using https://github.com/interrogator/conll-df
 
-# Installing:
+## Installing
+
 Here's how to properly set up the project:
-* To correctly clone the project install git lfs first https://git-lfs.github.com/
-* Install pytorch 0.4 https://pytorch.org/
-* Install requirements.txt by running `pip install -r requirements.txt`
 
-# Run Training
-Run the training launching
-```python
-python -m parser.train
+- Install TensorFlow >= 1.10.0 https://www.tensorflow.org/install/
+- Install requirements.txt by running `pip install -r requirements.txt`
+
+## Run Training
+
+Run the script for training:
+
+```shell
+./train.sh
 ```
 
-At the moment Hyperparameters information is in the code.
+## Results
+
+세종 데이터셋에 대한 정확도 성능
+
+No. | Systems | 어절 표현 | Embeddings | UAS | LAS
+--- | --- | --- | --- | :---: | :---:
+1 | Biaffine | 평균 | Pre-trained on train-set | 87.40 | 82.82
+2 | Biaffine | 평균 | Random | 89.01 | 85.96
