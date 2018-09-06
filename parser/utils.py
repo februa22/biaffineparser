@@ -99,7 +99,7 @@ def load_dataset(filepath):
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(rels, 100, maxlen, starti=0)
 
-    heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=False)
+    heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
     
     _, words_dict, _ = initialize_embed_features(sentences, 100, maxlen, split_word=True, starti=0)
 

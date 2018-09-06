@@ -148,7 +148,6 @@ def main(flags, log_f):
         pos_embedding,  # (20, 100)
         maxlen,  # 160
      ) = utils.load_dataset(flags.train_filename)
-    #pdb.set_trace()
 
     utils.print_out('#'*30, log_f)
     utils.print_out(f'sentences_indexed {sentences_indexed.shape}', log_f)
@@ -181,7 +180,7 @@ def main(flags, log_f):
     val_rels_indexed = utils.get_indexed_sequences(
         val_rels, rels_features_dict, val_maxlen)
     val_heads_padded = utils.get_indexed_sequences(
-        val_heads, heads_features_dict, val_maxlen, just_pad=False)
+        val_heads, heads_features_dict, val_maxlen, just_pad=True)
 
     dev_data = (val_sentences_indexed, val_pos_indexed,
                 val_rels_indexed, val_heads_padded)
