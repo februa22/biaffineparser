@@ -214,6 +214,7 @@ def main(flags, log_f):
 
     # train
     for epoch in range(flags.num_train_epochs):
+        epoch += 1
         # reset progbar each epoch
         progbar = Progbar(len(sentences_indexed))
         sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
@@ -236,6 +237,9 @@ def main(flags, log_f):
                 ('uas', uas),
                 ('las', las),
             ])
+            s = f'epoch: {int(epoch)} - loss: {loss} - uas: {uas} - las: {las} - global_step: {global_step}'
+            log_f.write(s.encode("utf-8"))
+            log_f.write(b"\n")
         # eval_step
         eval_result = evaluate(model, dev_data, flags.batch_size)
         (eval_loss, eval_uas, eval_las, _, _, _) = eval_result
