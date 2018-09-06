@@ -98,8 +98,9 @@ class Model(object):
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
+            trainable = False if self.hparams.word_embed_file else True
             _word_embedding = tf.Variable(
-                self.word_embedding, trainable=False,
+                self.word_embedding, trainable=trainable,
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
@@ -108,8 +109,9 @@ class Model(object):
                 keep_prob = 1.0 - self.embed_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
+            trainable = False if self.hparams.pos_embed_file else True
             _pos_embedding = tf.Variable(
-                self.pos_embedding, trainable=False,
+                self.pos_embedding, trainable=trainable,
                 name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
