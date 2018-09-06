@@ -11,8 +11,6 @@ from . import utils
 from .model import Model
 from .progress_bar import Progbar
 
-import pdb
-
 FLAGS = None
 
 
@@ -22,26 +20,18 @@ def add_arguments(parser):
     #parser.register("type", "bool", lambda v: v.lower() == "false")
 
     # network
-    parser.add_argument('--embedding_size', type=int, default=100,
-                        help='Embedding size')
-    parser.add_argument('--embedding_train_size', type=int, default=100,
-                        help='Embedding size for train')
-    parser.add_argument('--lstm_hidden_size', type=int, default=400,
+    parser.add_argument('--num_lstm_units', type=int, default=400,
                         help='Number of hidden units for LSTM')
-    parser.add_argument('--pos_embedding_size', type=int, default=100,
-                        help='Size of POS embedding')
+    parser.add_argument('--num_lstm_layers', type=int, default=3,
+                        help='Number of LSTM layers')
     parser.add_argument('--arc_mlp_units', type=int, default=500,
                         help='Number of hidden units for MLP of arc')
     parser.add_argument('--label_mlp_units', type=int, default=100,
                         help='Number of hidden units for MLP of label')
-    parser.add_argument('--embedding_dropout', type=float, default=.33,
-                        help='Dropout rate for embedding')
-    parser.add_argument('--lstm_dropout', type=float, default=.33,
-                        help='Dropout rate for LSTM')
-    parser.add_argument('--mlp_dropout', type=float, default=.33,
-                        help='Dropout rate for MLP')
-    parser.add_argument('--num_lstm_layers', type=int, default=3,
-                        help='Number of LSTM layers')
+    parser.add_argument('--word_embed_size', type=int, default=100,
+                        help="The embedding dimension for the word's embedding.")
+    parser.add_argument('--pos_embed_size', type=int, default=100,
+                        help="The embedding dimension for the POS's embedding.")
 
     # optimizer
     parser.add_argument("--optimizer", type=str, default="adam",
@@ -68,8 +58,20 @@ def add_arguments(parser):
                         help="Vocab name of rels.")
     parser.add_argument("--head_vocab_name", type=str, default='head.pkl',
                         help="Vocab name of heads.")
+    parser.add_argument("--word_embed_file", type=str, default=None,
+                        help="Use the pre-trained embedding. \
+                        If not provided, use random values.")
+    parser.add_argument("--pos_embed_file", type=str, default=None,
+                        help="Use the pre-trained embedding. \
+                        If not provided, use random values.")
 
     # Default settings works well (rarely need to change)
+    parser.add_argument('--embed_dropout', type=float, default=.33,
+                        help='Dropout rate for the embedding (not keep_prob)')
+    parser.add_argument('--lstm_dropout', type=float, default=.33,
+                        help='Dropout rate for LSTM (not keep_prob)')
+    parser.add_argument('--mlp_dropout', type=float, default=.33,
+                        help='Dropout rate for MLP (not keep_prob)')
     parser.add_argument("--batch_size", type=int, default=128,
                         help="Batch size.")
 
@@ -147,7 +149,7 @@ def main(flags, log_f):
         word_embedding,  # (400005, 100)
         pos_embedding,  # (20, 100)
         maxlen,  # 160
-     ) = utils.load_dataset(flags.train_filename)
+     ) = utils.load_dataset(flags.train_filename, flags)
 
     utils.print_out('#'*30, log_f)
     utils.print_out(f'sentences_indexed {sentences_indexed.shape}', log_f)
@@ -210,7 +212,7 @@ def main(flags, log_f):
         progbar = Progbar(len(sentences_indexed))
         sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
             sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
-        
+
         # iterate over the train-set
         for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
                 sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
@@ -244,10 +246,9 @@ def main(flags, log_f):
             ('eval_las', eval_las),
         ])
         print('\n')
-        utils.print_out(f'epoch: {int(epoch)} \
-            - loss: {loss} - uas: {uas} - las: {las} \
-            - eval_loss: {eval_loss} - eval_uas: {eval_uas} \
-            - eval_las: {eval_las}', log_f)
+        utils.print_out(
+            f'epoch: {int(epoch)} - loss: {loss} - uas: {uas} - las: {las} - eval_loss: {eval_loss} - eval_uas: {eval_uas} - eval_las: {eval_las}',
+            log_f)
         # save the best model or early stopping
         if eval_uas > best_eval_uas:
             model.save(os.path.join(flags.out_dir, 'parser.ckpt'))
@@ -255,8 +256,9 @@ def main(flags, log_f):
             stop_count = 0
             utils.print_out('# new best UAS!', log_f)
         elif stop_count >= 20:
-            utils.print_out(f'# early stopping {stop_count} \
-                            epochs without improvement', log_f)
+            utils.print_out(
+                f'# early stopping {stop_count} epochs without improvement',
+                log_f)
             break
         else:
             stop_count += 1

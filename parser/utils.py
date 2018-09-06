@@ -74,7 +74,7 @@ class VocabSelector:
     def transform(self, X):
         return np.asarray([self.__look_up(x) for x in X], dtype=np.int32)
 
-def load_dataset(filepath):
+def load_dataset(filepath, flags):
     
     #check dataset_multiindex and save or load
     dataset_multiindex_filepath = 'embeddings/dataset_multiindex.pkl'
@@ -93,7 +93,7 @@ def load_dataset(filepath):
         print(f'updating maxlen since it is less than head_features : maxlen={maxlen}')
         maxlen = len(heads_features_dict)
 
-    _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, 100, maxlen, return_embeddings=False, split_word=True)
+    _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, flags.pos_embed_size, maxlen, split_word=True)
 
     pos_indexed = get_indexed_sequences(pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
@@ -101,19 +101,23 @@ def load_dataset(filepath):
 
     heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
     
-    _, words_dict, _ = initialize_embed_features(sentences, 100, maxlen, split_word=True, starti=0)
+    _, words_dict, words_embeddings_matrix = initialize_embed_features(sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
-    words_embeddings_matrix, merged_words_dict = load_glove_model('embeddings/words.pos.vec', words_dict=words_dict)
-    pos_embedding_matrix, pos_features_dict = load_glove_model('embeddings/words.tag.vec', words_dict=pos_features_dict)
+    if flags.word_embed_file:
+        words_embeddings_matrix, words_dict = load_glove_model(
+            flags.word_embed_file, words_dict=words_dict)
+    if flags.pos_embed_file:
+        pos_embedding_matrix, pos_features_dict = load_glove_model(
+            flags.pos_embed_file, words_dict=pos_features_dict)
 
     # making word_dictionary
-    sentences_indexed = get_indexed_sequences(sentences, merged_words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
+    sentences_indexed = get_indexed_sequences(sentences, words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
     
     # dumping dictionaries
-    print('dumping merged_words_dict')
-    with open('embeddings/merged_words_dict.json', 'w') as f:
-        json.dump(merged_words_dict, f, indent=4, ensure_ascii=False)
+    print('dumping words_dict')
+    with open('embeddings/words_dict.json', 'w') as f:
+        json.dump(words_dict, f, indent=4, ensure_ascii=False)
     print('dumping pos_features_dict')
     with open('embeddings/pos_features_dict.json', 'w') as f:
         json.dump(pos_features_dict, f, indent=4)
@@ -123,7 +127,7 @@ def load_dataset(filepath):
     print('dumping rels_features_dict')
     with open('embeddings/rels_features_dict.json', 'w') as f:
         json.dump(rels_features_dict, f, indent=4)
-    return sentences_indexed, pos_indexed, heads_padded, rels_indexed, merged_words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
+    return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
 #loading glove model
 def load_glove_model(glove_file_path, words_dict):
