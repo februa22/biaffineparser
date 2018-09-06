@@ -6,6 +6,7 @@ from tensorflow.python import debug as tf_debug
 
 from . import utils
 
+
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table,
                  rels_vocab_table, heads_vocab_table, word_embedding, pos_embedding):
@@ -33,7 +34,7 @@ class Model(object):
         self.rel_pad_id = tf.constant(
             rels_vocab_table[utils.GLOBAL_PAD_SYMBOL])
 
-        self.embedding_dropout = 0.0
+        self.embed_dropout = 0.0
         self.lstm_dropout = 0.0
         self.mlp_dropout = 0.0
 
@@ -103,22 +104,18 @@ class Model(object):
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
             word_embedding = tf.reduce_mean(word_embedding, axis=-2)
-            if self.embedding_dropout > 0.0:
-                keep_prob = 1.0 - self.embedding_dropout
+            if self.embed_dropout > 0.0:
+                keep_prob = 1.0 - self.embed_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
             _pos_embedding = tf.Variable(
                 self.pos_embedding, trainable=False,
                 name="_pos_embedding", dtype=tf.float32)
-            # _pos_embedding = tf.Variable(
-            #     tf.random_uniform(
-            #         [len(self.pos_vocab_table), self.hparams.pos_embedding_size], -1.0, 1.0),
-            #     name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
             pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
-            if self.embedding_dropout > 0.0:
-                keep_prob = 1.0 - self.embedding_dropout
+            if self.embed_dropout > 0.0:
+                keep_prob = 1.0 - self.embed_dropout
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
@@ -133,7 +130,7 @@ class Model(object):
         with tf.variable_scope('mlp'):
             batch_size = tf.shape(self.word_ids)[0]
             self.output = tf.reshape(
-                self.output, [-1, 2*self.hparams.lstm_hidden_size])
+                self.output, [-1, 2*self.hparams.num_lstm_units])
             # MLP
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
@@ -184,8 +181,9 @@ class Model(object):
             seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
-            #pdb.set_trace()
-            self.label_logits = tf.gather_nd(full_label_logits, indices=indices)
+            # pdb.set_trace()
+            self.label_logits = tf.gather_nd(
+                full_label_logits, indices=indices)
 
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
@@ -261,7 +259,7 @@ class Model(object):
 
     def _run_session(self, sentences_indexed, pos_indexed,
                      heads_indexed=None, rels_indexed=None):
-        self.embedding_dropout = self.hparams.embedding_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
+        self.embed_dropout = self.hparams.embed_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.mlp_dropout = self.hparams.mlp_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
 
@@ -271,9 +269,11 @@ class Model(object):
         max_len = max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_len]
         pos_indexed = pos_indexed[:, :max_len]
-        heads_indexed = heads_indexed[:, :max_len] if heads_indexed is not None else None
-        rels_indexed = rels_indexed[:, :max_len] if rels_indexed is not None else None
-        
+        if heads_indexed is not None:
+            heads_indexed = heads_indexed[:, :max_len]
+        if rels_indexed is not None:
+            rels_indexed = rels_indexed[:, :max_len]
+
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,
@@ -322,9 +322,9 @@ class Model(object):
 
 def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
     cell = tf.contrib.rnn.LSTMCell
-    cells_fw = [cell(hparams.lstm_hidden_size)
+    cells_fw = [cell(hparams.num_lstm_units)
                 for _ in range(hparams.num_lstm_layers)]
-    cells_bw = [cell(hparams.lstm_hidden_size)
+    cells_bw = [cell(hparams.num_lstm_units)
                 for _ in range(hparams.num_lstm_layers)]
     if dropout > 0.0:
         keep_prob = 1.0 - dropout
@@ -373,17 +373,17 @@ def mlp_with_scope(x, n_input, n_output, dropout, scope):
 
 def mlp_for_arc(hparams, x, dropout):
     h_arc_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, dropout, 'arc_head')
+        x, 2*hparams.num_lstm_units, hparams.arc_mlp_units, dropout, 'arc_head')
     h_arc_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.arc_mlp_units, dropout, 'arc_dep')
+        x, 2*hparams.num_lstm_units, hparams.arc_mlp_units, dropout, 'arc_dep')
     return h_arc_head, h_arc_dep
 
 
 def mlp_for_label(hparams, x, dropout):
     h_label_head = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, dropout, 'label_head')
+        x, 2*hparams.num_lstm_units, hparams.label_mlp_units, dropout, 'label_head')
     h_label_dep = mlp_with_scope(
-        x, 2*hparams.lstm_hidden_size, hparams.label_mlp_units, dropout, 'label_dep')
+        x, 2*hparams.num_lstm_units, hparams.label_mlp_units, dropout, 'label_dep')
     return h_label_head, h_label_dep
 
 

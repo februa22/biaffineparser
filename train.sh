@@ -9,6 +9,9 @@ device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
 batch_size=128  # Batch size.
+word_embed_size=200  # The embedding dimension for the word's embedding.
+word_embed_file=embeddings/words.pos.vec  # Use the pre-trained embedding. If not provided, use random values.
+pos_embed_file=embeddings/words.tag.vec  # Use the pre-trained embedding. If not provided, use random values.
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
@@ -16,9 +19,12 @@ batch_size=128  # Batch size.
 echo "train"
 python -m parser.parser \
     --train_filename=${train_filename} \
-    --dev_filename=${dev_filename}  \
-    --out_dir=${out_dir}  \
+    --dev_filename=${dev_filename} \
+    --out_dir=${out_dir} \
+    --word_embed_file=${word_embed_file} \
+    --pos_embed_file=${pos_embed_file} \
     --device=${device} \
     --debug=${debug} \
     --num_train_epochs=${num_train_epochs} \
-    --batch_size=${batch_size}
+    --batch_size=${batch_size} \
+    --word_embed_size=${word_embed_size}
