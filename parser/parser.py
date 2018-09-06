@@ -205,6 +205,10 @@ def main(flags, log_f):
         flags.out_dir, flags.rel_vocab_name))
     utils.save_vocab(heads_features_dict, os.path.join(
         flags.out_dir, flags.head_vocab_name))
+    # save hparams as json in out_dir
+    hparams_json_path = os.path.join(flags.out_dir, 'hparms.json')
+    print(f'Save hparams... {hparams_json_path}')
+    json.dump(vars(flags), open(hparams_json_path, 'w', encoding='utf-8'), indent=4, ensure_ascii=False)
 
     # train
     for epoch in range(flags.num_train_epochs):
