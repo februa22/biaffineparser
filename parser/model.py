@@ -8,19 +8,21 @@ from . import utils
 
 class Model(object):
     def __init__(self, hparams, word_vocab_table, pos_vocab_table,
-                 rels_vocab_table, heads_vocab_table, word_embedding):
+                 rels_vocab_table, heads_vocab_table, word_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
+        print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.word_vocab_table = word_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
+        self.pos_embedding = pos_embedding
 
         self.hparams = hparams
         self.n_classes = len(rels_vocab_table)
@@ -96,30 +98,31 @@ class Model(object):
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
             _word_embedding = tf.Variable(
-                self.word_embedding, trainable=True,
+                self.word_embedding, trainable=False,
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
-            reduced_word_embedding = tf.reduce_mean(word_embedding, axis=-2)
+            word_embedding = tf.reduce_mean(word_embedding, axis=-2)
             if self.embedding_dropout > 0.0:
                 keep_prob = 1.0 - self.embedding_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
-            # _pos_embedding = tf.Variable(
-            #     self.pos_embedding, name="_pos_embedding", dtype=tf.float32)
             _pos_embedding = tf.Variable(
-                tf.random_uniform(
-                    [len(self.pos_vocab_table), self.hparams.pos_embedding_size], -1.0, 1.0),
+                self.pos_embedding, trainable=False,
                 name="_pos_embedding", dtype=tf.float32)
+            # _pos_embedding = tf.Variable(
+            #     tf.random_uniform(
+            #         [len(self.pos_vocab_table), self.hparams.pos_embedding_size], -1.0, 1.0),
+            #     name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
-            reduced_pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
+            pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
             if self.embedding_dropout > 0.0:
                 keep_prob = 1.0 - self.embedding_dropout
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
-                [reduced_word_embedding, reduced_pos_embedding], axis=-1)
+                [word_embedding, pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):

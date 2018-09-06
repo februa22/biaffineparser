@@ -188,8 +188,11 @@ def main(flags, log_f):
     best_eval_uas = .0
     stop_count = 0
 
-    model = Model(flags, words_dict, pos_features_dict,
-                  rels_features_dict, heads_features_dict, word_embedding)
+    model = Model(
+        flags,
+        words_dict, pos_features_dict,
+        rels_features_dict, heads_features_dict,
+        word_embedding, pos_embedding)
     model.build()
 
     utils.save_vocab(words_dict, os.path.join(
