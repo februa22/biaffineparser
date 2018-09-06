@@ -220,7 +220,7 @@ class Model(object):
                 learning_rate=self.hparams.learning_rate, beta2=self.hparams.decay_factor)
         else:
             raise ValueError(f'Unknown optimizer {self.hparams.optimizer}')
-        self.update = opt.minimize(self.train_loss)
+        self.update = opt.minimize(self.train_loss, global_step=self.global_step)
 
     def create_uas_and_las_op(self):
         """ UAS and LAS"""
