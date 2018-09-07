@@ -36,12 +36,12 @@ def main(flags):
             if eoj_id == 1:
                 sent_id += 1
             eoj = row['eoj_kangwon']
-            eoj_without_pos = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split('|')])
+            #eoj_without_pos = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split('|')])
             head_id = row['head_id'] 
             label = row['label']
             pos = '|'.join([morph[morph.rfind('/')+1:] for morph in str(eoj).strip().split('|')])
             
-            f.write('\t'.join([str(s) for s in [sent_id, eoj_id, eoj_without_pos, pos, head_id, label]]) + "\n")
+            f.write('\t'.join([str(s) for s in [sent_id, eoj_id, eoj, pos, head_id, label]]) + "\n")
             if index % 10000 == 0:
                 print(f'writing line index={index}')
     print('writing output_file END')

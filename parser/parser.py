@@ -66,6 +66,12 @@ def add_arguments(parser):
     parser.add_argument("--pos_embed_file", type=str, default=None,
                         help="Use the pre-trained embedding. \
                         If not provided, use random values.")
+    parser.add_argument("--word_embed_matrix_file", type=str, default=None,
+                        help="word_embed_martix file path (numpy to text). \
+                        If not provided, not saving.")
+    parser.add_argument("--pos_embed_matrix_file", type=str, default=None,
+                        help="pos_embed_martix file path (numpy to text). \
+                        If not provided, not saving.")
 
     # Default settings works well (rarely need to change)
     parser.add_argument('--embed_dropout', type=float, default=.33,
