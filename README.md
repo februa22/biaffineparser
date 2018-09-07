@@ -19,9 +19,4 @@ Run the script for training:
 
 ## Results
 
-세종 데이터셋에 대한 정확도 성능
-
-No. | Systems | 어절 표현 | Embeddings | UAS | LAS
---- | --- | --- | --- | :---: | :---:
-1 | Biaffine | 평균 | Pre-trained on train-set | 87.40 | 82.82
-2 | Biaffine | 평균 | Random | 89.01 | 85.96
+[세종 데이터셋에 대한 정확도 성능 비교 테이블](https://github.com/nlp-research/biaffineparser/issues/41)
