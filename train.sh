@@ -4,7 +4,7 @@
 ############## START ###################
 train_filename=data/sejong.train.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
-out_dir=parser/model_dev # Store log/model files.
+out_dir=parser/model_iss42 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
@@ -16,7 +16,6 @@ pos_embed_file=embeddings/words.tag.original.vec  # Use the pre-trained embeddin
 
 [ -d foo ] || mkdir ${out_dir}
 
-#export CUDA_VISIBLE_DEVICES
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
