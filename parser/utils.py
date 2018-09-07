@@ -148,8 +148,8 @@ def load_glove_model(glove_file_path, words_dict):
     
     #create empty embedding matrix with zeros
     #create random embedding matrix for initialization
-    # embedding_matrix = np.random.rand(len(words_dict), embedding_size)
-    embedding_matrix = np.zeros((len(words_dict), embedding_size))
+    embedding_matrix = np.random.rand(len(words_dict), embedding_size)
+    # embedding_matrix = np.zeros((len(words_dict), embedding_size))
     for key, value in words_dict.items():
         word_vocab = key
         word_index = value
@@ -157,11 +157,11 @@ def load_glove_model(glove_file_path, words_dict):
         # add word_vector to matrix
         if word_vector is not None:
             embedding_matrix[word_index] = word_vector
-    unk_index = words_dict['<UNK>']
-    embedding_matrix[unk_index] = np.random.rand(embedding_size)
+    # unk_index = words_dict['<UNK>']
+    # embedding_matrix[unk_index] = np.random.rand(embedding_size)
     # replace padding in embedding matrix into np.zeros
-    # pad_index = words_dict['<PAD>']
-    # embedding_matrix[pad_index] = np.zeros(embedding_size)
+    pad_index = words_dict['<PAD>']
+    embedding_matrix[pad_index] = np.zeros(embedding_size)
     return embedding_matrix, words_dict
 
 def save_vocab(vocab, filepath):
