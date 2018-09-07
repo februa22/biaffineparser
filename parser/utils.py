@@ -84,14 +84,10 @@ def load_dataset(filepath, flags):
     else:
         print('Creating dataset_multiindex_file...')
         (sentences, pos, rels, heads, maxlen, maxwordlen) = get_dataset_multiindex(filepath)
-        print('Saving dataset_multiindex_file...')
+        print(f'Saving dataset_multiindex_file... : {dataset_multiindex_filepath}')
         save_vocab((sentences, pos, rels, heads, maxlen, maxwordlen), dataset_multiindex_filepath)
 
     _, heads_features_dict, _ = initialize_embed_features(heads, 100, maxlen, starti=0, return_embeddings=False)
-    #update maxlen when maxlen is less or equal to number of head_features (head_vocab)
-    if maxlen < len(heads_features_dict):
-        print(f'updating maxlen since it is less than head_features : maxlen={maxlen}')
-        maxlen = len(heads_features_dict)
 
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(pos, flags.pos_embed_size, maxlen, split_word=True)
 
@@ -105,15 +101,23 @@ def load_dataset(filepath, flags):
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
     if flags.word_embed_file:
-        words_embeddings_matrix, words_dict = load_glove_model(
+        words_embeddings_matrix, words_dict = load_embed_model(
             flags.word_embed_file, words_dict=words_dict)
     if flags.pos_embed_file:
-        pos_embedding_matrix, pos_features_dict = load_glove_model(
+        pos_embedding_matrix, pos_features_dict = load_embed_model(
             flags.pos_embed_file, words_dict=pos_features_dict)
 
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(sentences, words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
-    
+
+    #saving words and pos embeddings matrix
+    if flags.word_embed_matrix_file:
+        print(f'saving words_embeddings_matrix: {flags.word_embed_matrix_file}')
+        np.savetxt(flags.word_embed_matrix_file, words_embeddings_matrix)
+    if flags.pos_embed_matrix_file:
+        print(f'saving pos_embeddings_matrix: {flags.pos_embed_matrix_file}')
+        np.savetxt(flags.pos_embed_matrix_file, pos_embedding_matrix)
+
     # dumping dictionaries
     print('dumping words_dict')
     with open('embeddings/words_dict.json', 'w') as f:
@@ -129,11 +133,11 @@ def load_dataset(filepath, flags):
         json.dump(rels_features_dict, f, indent=4)
     return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
-#loading glove model
-def load_glove_model(glove_file_path, words_dict):
-    print("Loading Glove Model and merging with words_dict")
+#loading embed model
+def load_embed_model(embed_file_path, words_dict):
+    print("Loading Pre-trained Embedding Model and merging with current dict")
     glove_dict = {}
-    with open(glove_file_path, 'r', encoding='utf-8') as f:
+    with open(embed_file_path, 'r', encoding='utf-8') as f:
         for index, line in enumerate(f):
             if line.strip():
                 word_and_embedding = line.strip().split('\t', 1)
@@ -148,8 +152,9 @@ def load_glove_model(glove_file_path, words_dict):
     
     #create empty embedding matrix with zeros
     #create random embedding matrix for initialization
-    # embedding_matrix = np.random.rand(len(words_dict), embedding_size)
-    embedding_matrix = np.zeros((len(words_dict), embedding_size))
+    np.random.seed(0) # for reproducibility
+    embedding_matrix = np.random.rand(len(words_dict), embedding_size)
+    #embedding_matrix = np.zeros((len(words_dict), embedding_size))
     for key, value in words_dict.items():
         word_vocab = key
         word_index = value
@@ -157,11 +162,11 @@ def load_glove_model(glove_file_path, words_dict):
         # add word_vector to matrix
         if word_vector is not None:
             embedding_matrix[word_index] = word_vector
-    unk_index = words_dict['<UNK>']
-    embedding_matrix[unk_index] = np.random.rand(embedding_size)
+    #unk_index = words_dict['<UNK>']
+    #embedding_matrix[unk_index] = np.random.rand(embedding_size)
     # replace padding in embedding matrix into np.zeros
-    # pad_index = words_dict['<PAD>']
-    # embedding_matrix[pad_index] = np.zeros(embedding_size)
+    pad_index = words_dict['<PAD>']
+    embedding_matrix[pad_index] = np.zeros(embedding_size)
     return embedding_matrix, words_dict
 
 def save_vocab(vocab, filepath):
@@ -255,8 +260,8 @@ def cast_safe_list(elem):
 def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
-    # Only preprocess I make is lowercase
-    dataset['eoj'] = dataset['eoj'].apply(lambda x: str(x).lower())
+    #Process to make it string
+    dataset['eoj'] = dataset['eoj'].apply(lambda x: str(x))
     dataset = dataset.set_index(['sent_id'])
     sentences = []
     pos = []
