@@ -295,10 +295,10 @@ def replace_and_save_dataset(input_file, heads, rels, output_file):
     print_out(f'Replace dataset... {input_file}')
     # dataset = pd.read_csv(input_file)
     dataset = pd.read_csv(input_file, sep='\t', quoting=csv.QUOTE_NONE)
-    dataset = dataset.set_index(['s'])
+    dataset = dataset.set_index(['sent_id'])
     for i in dataset.index.unique():
-        dataset.loc[i, 'f'] = rels[i]
-        dataset.loc[i, 'g'] = heads[i]
+        dataset.loc[i, 'label'] = rels[i]
+        dataset.loc[i, 'head_id'] = heads[i]
     
     print_out(f'Save dataset... {output_file}')
     dataset.to_csv(output_file, encoding='utf-8')
