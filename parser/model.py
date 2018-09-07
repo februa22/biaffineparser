@@ -97,6 +97,12 @@ class Model(object):
             tf.int32, shape=[None, None], name='rel_ids')
         self.sequence_length = tf.placeholder(
             tf.int32, shape=[None], name='sequence_length')
+        self.word_length = tf.placeholder(
+            tf.int32, shape=[None, None], name='word_length')
+        self.max_seq_len = tf.placeholder(
+            tf.int32, shape=None, name='max_seq_len')
+        self.max_word_len = tf.placeholder(
+            tf.int32, shape=None, name='max_word_len')
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
@@ -106,7 +112,10 @@ class Model(object):
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
-            word_embedding = tf.reduce_mean(word_embedding, axis=-2)
+            shape = tf.shape(self.word_ids)
+            seq_len = tf.reduce_max(self.sequence_length)
+            word_len = tf.reduce_max(self.word_length)
+            word_embedding = tf.reshape(word_embedding, [shape[0], self.max_seq_len, 16 * self.hparams.word_embed_size])
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
@@ -117,7 +126,7 @@ class Model(object):
                 name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
-            pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
+            pos_embedding = tf.reshape(pos_embedding, [shape[0], self.max_seq_len, 16 * self.hparams.pos_embed_size])
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
@@ -269,19 +278,25 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
+        word_length = utils.get_word_length(
+            sentences_indexed, self.word_pad_id)
 
-        max_len = max(sequence_length)
-        sentences_indexed = sentences_indexed[:, :max_len]
-        pos_indexed = pos_indexed[:, :max_len]
+        max_seq_len = max(sequence_length)
+        max_word_len = 16
+        sentences_indexed = sentences_indexed[:, :max_seq_len, :]
+        pos_indexed = pos_indexed[:, :max_seq_len, :]
         if heads_indexed is not None:
-            heads_indexed = heads_indexed[:, :max_len]
+            heads_indexed = heads_indexed[:, :max_seq_len]
         if rels_indexed is not None:
-            rels_indexed = rels_indexed[:, :max_len]
+            rels_indexed = rels_indexed[:, :max_seq_len]
 
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
+            self.word_length: word_length,
+            self.max_seq_len: max_seq_len,
+            self.max_word_len: max_word_len,
         }
 
         if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
