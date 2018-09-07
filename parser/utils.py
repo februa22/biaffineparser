@@ -147,8 +147,8 @@ def load_embed_model(embed_file_path, words_dict):
                 # add glove word in word_dict
                 if word not in words_dict:
                     words_dict[word] = len(words_dict)
-            #get embedding_size: ex) 200
-            embedding_size = len(embedding)
+        #get embedding_size: ex) 200
+        embedding_size = len(embedding)
     
     #create empty embedding matrix with zeros
     #create random embedding matrix for initialization
@@ -260,8 +260,10 @@ def cast_safe_list(elem):
 def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
-    #Process to make it string
+    #Process to make eoj string
     dataset['eoj'] = dataset['eoj'].apply(lambda x: str(x))
+    #Process to make head_id float
+    dataset['head_id'] = dataset['head_id'].apply(lambda x: int(x))
     dataset = dataset.set_index(['sent_id'])
     sentences = []
     pos = []
