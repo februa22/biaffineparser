@@ -8,8 +8,8 @@ from . import utils
 
 
 class Model(object):
-    def __init__(self, hparams, word_vocab_table, pos_vocab_table,
-                 rels_vocab_table, heads_vocab_table, word_embedding, pos_embedding):
+    def __init__(self, hparams, word_vocab_table, word_only_vocab_table, pos_vocab_table,
+                 rels_vocab_table, heads_vocab_table, word_embedding, word_only_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
@@ -19,10 +19,12 @@ class Model(object):
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.word_vocab_table = word_vocab_table
+        self.word_only_vocab_table = word_only_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
+        self.word_only_embedding = word_only_embedding
         self.pos_embedding = pos_embedding
 
         self.hparams = hparams
@@ -118,6 +120,18 @@ class Model(object):
                 keep_prob = 1.0 - self.embed_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
+            #word_only_embedding
+            trainable = False if self.hparams.pos_embed_file else True
+            _word_only_embedding = tf.Variable(
+                self.word_only_embedding, trainable=trainable,
+                name="_word_only_embedding", dtype=tf.float32)
+            word_only_embedding = tf.nn.embedding_lookup(
+                _word_only_embedding, self.word_ids, name="word_only_embedding")
+            word_only_embedding = tf.reduce_mean(word_only_embedding, axis=-2)
+            if self.embed_dropout > 0.0:
+                keep_prob = 1.0 - self.embed_dropout
+                word_only_embedding = tf.nn.dropout(word_only_embedding, keep_prob)
+
             trainable = False if self.hparams.pos_embed_file else True
             _pos_embedding = tf.Variable(
                 self.pos_embedding, trainable=trainable,
@@ -130,7 +144,7 @@ class Model(object):
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
-                [word_embedding, pos_embedding], axis=-1)
+                [word_embedding, word_only_embedding, pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
@@ -268,7 +282,7 @@ class Model(object):
             value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
-    def _run_session(self, sentences_indexed, pos_indexed,
+    def _run_session(self, sentences_indexed, sentences_only_indexed, pos_indexed,
                      heads_indexed=None, rels_indexed=None):
         self.embed_dropout = self.hparams.embed_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
@@ -279,6 +293,7 @@ class Model(object):
 
         max_len = max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_len]
+        sentences_only_indexed = sentences_indexed[:, :max_len]
         pos_indexed = pos_indexed[:, :max_len]
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_len]
@@ -287,6 +302,7 @@ class Model(object):
 
         feed_dict = {
             self.word_ids: sentences_indexed,
+            self.word_only_ids: sentences_only_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
         }
@@ -312,20 +328,20 @@ class Model(object):
 
     def train_step(self, data):
         self.mode = self.train_mode
-        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed,
+        (sentences_indexed, sentences_only_indexed, pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def eval_step(self, data):
         self.mode = self.eval_mode
-        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed,
+        (sentences_indexed, sentences_only_indexed, pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def inference_step(self, data):
         self.mode = self.infer_mode
-        (sentences_indexed, pos_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed)
+        (sentences_indexed, sentences_only_indexed, pos_indexed) = data
+        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed)
 
     def save(self, save_path):
         self.saver.save(self.sess, save_path)

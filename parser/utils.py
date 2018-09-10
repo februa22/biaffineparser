@@ -83,29 +83,30 @@ def load_dataset(filepath, flags):
     dataset_multiindex_filepath = 'embeddings/dataset_multiindex.pkl'
     if os.path.isfile(dataset_multiindex_filepath):
         print('dataset_multiindex_file exists, loading dataset_multiindex_file...')
-        (sentences, pos, rels, heads, maxlen, maxwordlen,
-         sentences_only) = load_vocab(dataset_multiindex_filepath)
+        (sentences, sentences_only, pos, rels, heads, maxlen,
+         maxwordlen) = load_vocab(dataset_multiindex_filepath)
         # pass
     else:
         print('Creating dataset_multiindex_file...')
-        (sentences, pos, rels, heads, maxlen, maxwordlen,
-         sentences_only) = get_dataset_multiindex(filepath)
+        (sentences, sentences_only, pos, rels, heads, maxlen,
+         maxwordlen) = get_dataset_multiindex(filepath)
         print(
             f'Saving dataset_multiindex_file... : {dataset_multiindex_filepath}')
-        save_vocab((sentences, pos, rels, heads, maxlen, maxwordlen,
-                    sentences_only), dataset_multiindex_filepath)
+        save_vocab((sentences, sentences_only, pos, rels, heads,
+                    maxlen, maxwordlen), dataset_multiindex_filepath)
 
     # pdb.set_trace()
-    #sentences_only = [ [word for word in sentences]]
-
     _, heads_features_dict, _ = initialize_embed_features(
         heads, 100, maxlen, starti=0, return_embeddings=False)
 
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(
         pos, flags.pos_embed_size, maxlen, split_word=True)
+    # print(f'len(pos_features_dict)={len(pos_features_dict)}')
 
+    '''
     pos_indexed = get_indexed_sequences(
         pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
+    '''
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(
         rels, 100, maxlen, starti=0)
@@ -118,11 +119,9 @@ def load_dataset(filepath, flags):
 
     # word_dic for sentences only
     _, words_only_dict, _ = initialize_embed_features(
-        sentences_only, flags.word_embed_size, maxlen, split_word=True, starti=0)
+        sentences_only, flags.word_only_embed_size, maxlen, split_word=True, starti=0)
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
-    # words only embedding
-    flags.word_only_embed_file = 'embeddings/words.morph.original.vec'
     if flags.word_only_embed_file:
         words_only_embedding_matrix, words_only_dict = load_embed_model(
             flags.word_only_embed_file, words_dict=words_only_dict, embedding_size=200)
@@ -132,49 +131,54 @@ def load_dataset(filepath, flags):
     if flags.pos_embed_file:
         pos_embedding_matrix, pos_features_dict = load_embed_model(
             flags.pos_embed_file, words_dict=pos_features_dict, embedding_size=flags.pos_embed_size)
+    # print(f'len(pos_features_dict)={len(pos_features_dict)}')
 
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(
-        sentences, words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
+        sentences, vocab=words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
     sentences_only_indexed = get_indexed_sequences(
-        sentences_only, words_only_dict, maxl=maxlen, maxwordlen=maxwordlen, split_word=True)
+        sentences_only, vocab=words_only_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
+
+    pos_indexed = get_indexed_sequences(
+        pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
     # saving words and pos embeddings matrix
-    flags.word_embed_matrix_file = 'embeddings/word_only_embed_matrix'
-    print(f'saving words_only_embeddings_matrix: {word_embed_matrix_file}')
-    np.savetxt(word_embed_matrix_file, words_only_embedding_matrix)
-
     if flags.word_embed_matrix_file:
         print(
             f'saving words_embeddings_matrix: {flags.word_embed_matrix_file}')
         np.savetxt(flags.word_embed_matrix_file, words_embeddings_matrix)
+    if flags.word_only_embed_matrix_file:
+        print(
+            f'saving words_only_embeddings_matrix: {flags.word_only_embed_matrix_file}')
+        np.savetxt(flags.word_only_embed_matrix_file,
+                   words_only_embedding_matrix)
     if flags.pos_embed_matrix_file:
         print(f'saving pos_embeddings_matrix: {flags.pos_embed_matrix_file}')
         np.savetxt(flags.pos_embed_matrix_file, pos_embedding_matrix)
 
     # dumping dictionaries
+    print('dumping words_only_dict')
+    json.dump(words_only_dict, open(
+        'embeddings/words_only_dict.json', 'w'), indent=4, ensure_ascii=False)
     print('dumping words_dict')
-    # words_only_dict
-    with open('embeddings/words_only_dict.json', 'w') as f:
-        json.dump(words_only_dict, f, indent=4, ensure_ascii=False)
-    with open('embeddings/words_dict.json', 'w') as f:
-        json.dump(words_dict, f, indent=4, ensure_ascii=False)
+    json.dump(words_dict, open('embeddings/words_dict.json', 'w'),
+              indent=4, ensure_ascii=False)
     print('dumping pos_features_dict')
-    with open('embeddings/pos_features_dict.json', 'w') as f:
-        json.dump(pos_features_dict, f, indent=4)
+    json.dump(pos_features_dict, open(
+        'embeddings/pos_features_dict.json', 'w'), indent=4)
     print('dumping heads_features_dict')
-    with open('embeddings/heads_features_dict.json', 'w') as f:
-        json.dump(heads_features_dict, f, indent=4)
+    json.dump(heads_features_dict, open(
+        'embeddings/heads_features_dict.json', 'w'), indent=4)
     print('dumping rels_features_dict')
-    with open('embeddings/rels_features_dict.json', 'w') as f:
-        json.dump(rels_features_dict, f, indent=4)
-    return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen, words_only_dict, sentences_only_indexed
-    pdb.set_trace()
+    json.dump(rels_features_dict, open(
+        'embeddings/rels_features_dict.json', 'w'), indent=4)
+
+    #pdb.set_trace()
+    return sentences_indexed, sentences_only_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, words_only_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, words_only_embedding_matrix, pos_embedding_matrix, maxlen
+
 
 # loading embed model
-
-
 def load_embed_model(embed_file_path, words_dict, embedding_size):
     print("Loading Pre-trained Embedding Model and merging with current dict")
     glove_dict = {}
@@ -189,8 +193,6 @@ def load_embed_model(embed_file_path, words_dict, embedding_size):
                 # add glove word in word_dict
                 if word not in words_dict:
                     words_dict[word] = len(words_dict)
-        # get embedding_size: ex) 200
-        #embedding_size = len(embedding)
 
     # create empty embedding matrix with zeros
     # create random embedding matrix for initialization
@@ -204,8 +206,6 @@ def load_embed_model(embed_file_path, words_dict, embedding_size):
         # add word_vector to matrix
         if word_vector is not None:
             embedding_matrix[word_index] = word_vector
-    #unk_index = words_dict['<UNK>']
-    #embedding_matrix[unk_index] = np.random.rand(embedding_size)
     # replace padding in embedding matrix into np.zeros
     pad_index = words_dict['<PAD>']
     embedding_matrix[pad_index] = np.zeros(embedding_size)
@@ -342,7 +342,7 @@ def get_dataset_multiindex(filepath):
         if i % 5000 == 0:
             print("reading index=", i)
     # maxwordlen added for getting word length(어절 내의 최대 단어 수)
-    return sentences, pos, rels, heads, maxlen, maxwordlen, sentences_only
+    return sentences, sentences_only, pos, rels, heads, maxlen, maxwordlen
 
 
 def replace_and_save_dataset(input_file, heads, rels, output_file):
