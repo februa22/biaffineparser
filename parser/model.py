@@ -6,7 +6,6 @@ from tensorflow.python import debug as tf_debug
 
 from . import utils
 
-
 class Model(object):
     def __init__(self, hparams, word_vocab_table, word_only_vocab_table, pos_vocab_table,
                  rels_vocab_table, heads_vocab_table, word_embedding, word_only_embedding, pos_embedding):
