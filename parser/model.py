@@ -100,6 +100,8 @@ class Model(object):
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
+            sequence_length = tf.reshape(self.word_length, [-1])
+            shape = tf.shape(self.word_ids)
             with tf.variable_scope('word'):
                 trainable = False if self.hparams.word_embed_file else True
                 _word_embedding = tf.Variable(
@@ -107,7 +109,9 @@ class Model(object):
                     name="_word_embedding", dtype=tf.float32)
                 word_embedding = tf.nn.embedding_lookup(
                     _word_embedding, self.word_ids, name="word_embedding")
-                word_embedding = tf.reduce_mean(word_embedding, axis=-2)
+                word_embedding = tf.reshape(word_embedding, [-1, shape[2], self.hparams.word_embed_size])
+                word_embedding = bilstm_layer(word_embedding, sequence_length, int(self.hparams.word_embed_size / 2))
+                word_embedding = tf.reshape(word_embedding, [-1, shape[1], self.hparams.word_embed_size])
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
                     word_embedding = tf.nn.dropout(word_embedding, keep_prob)
@@ -118,7 +122,9 @@ class Model(object):
                     name="_pos_embedding", dtype=tf.float32)
                 pos_embedding = tf.nn.embedding_lookup(
                     _pos_embedding, self.pos_ids, name="pos_embedding")
-                pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
+                pos_embedding = tf.reshape(pos_embedding, [-1, shape[2], self.hparams.pos_embed_size])
+                pos_embedding = bilstm_layer(pos_embedding, sequence_length, int(self.hparams.pos_embed_size / 2))
+                pos_embedding = tf.reshape(pos_embedding, [-1, shape[1], self.hparams.pos_embed_size])
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
                     pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
@@ -394,9 +400,11 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
+        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32),
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
+        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
     }
     return weights, biases
 
@@ -404,10 +412,11 @@ def create_weight_and_bias(n_input, n_output):
 def multilayer_perceptron(x, weights, biases, dropout):
     layer_1 = tf.add(tf.matmul(x, weights['w1']), biases['b1'])
     layer_1 = tf.nn.relu(layer_1)
+    out_layer = tf.add(tf.matmul(layer_1, weights['w2']), biases['b2'])
     if dropout > 0.0:
         keep_prob = 1.0 - dropout
-        layer_1 = tf.nn.dropout(layer_1, keep_prob)
-    return layer_1
+        out_layer = tf.nn.dropout(out_layer, keep_prob)
+    return out_layer
 
 
 def mlp_with_scope(x, n_input, n_output, dropout, scope):
