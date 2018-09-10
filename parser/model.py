@@ -97,30 +97,42 @@ class Model(object):
             tf.int32, shape=[None, None], name='rel_ids')
         self.sequence_length = tf.placeholder(
             tf.int32, shape=[None], name='sequence_length')
+        self.word_length = tf.placeholder(
+            tf.int32, shape=[None, None], name='word_legnth')
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
-            trainable = False if self.hparams.word_embed_file else True
-            _word_embedding = tf.Variable(
-                self.word_embedding, trainable=trainable,
-                name="_word_embedding", dtype=tf.float32)
-            word_embedding = tf.nn.embedding_lookup(
-                _word_embedding, self.word_ids, name="word_embedding")
-            word_embedding = tf.reduce_mean(word_embedding, axis=-2)
-            if self.embed_dropout > 0.0:
-                keep_prob = 1.0 - self.embed_dropout
-                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+            sequence_length = tf.reshape(self.word_length, [-1])
+            with tf.variable_scope('word'):
+                _word_embedding = tf.Variable(
+                    self.word_embedding, trainable=True,
+                    name="_word_embedding", dtype=tf.float32)
+                word_embedding = tf.nn.embedding_lookup(
+                    _word_embedding, self.word_ids, name="word_embedding")
+                shape = tf.shape(word_embedding)
+                word_embedding = tf.reshape(word_embedding, [-1, shape[2], self.hparams.word_embed_size])
+                word_embedding = bilstm_layer(
+                    word_embedding, sequence_length,
+                    int(self.hparams.word_embed_size / 2))
+                word_embedding = tf.reshape(word_embedding, [-1, shape[1], self.hparams.word_embed_size])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
-            trainable = False if self.hparams.pos_embed_file else True
-            _pos_embedding = tf.Variable(
-                self.pos_embedding, trainable=trainable,
-                name="_pos_embedding", dtype=tf.float32)
-            pos_embedding = tf.nn.embedding_lookup(
-                _pos_embedding, self.pos_ids, name="pos_embedding")
-            pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
-            if self.embed_dropout > 0.0:
-                keep_prob = 1.0 - self.embed_dropout
-                pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
+            with tf.variable_scope('pos'):
+                _pos_embedding = tf.Variable(
+                    self.pos_embedding, trainable=True,
+                    name="_pos_embedding", dtype=tf.float32)
+                pos_embedding = tf.nn.embedding_lookup(
+                    _pos_embedding, self.pos_ids, name="pos_embedding")
+                pos_embedding = tf.reshape(pos_embedding, [-1, shape[2], self.hparams.pos_embed_size])
+                pos_embedding = bilstm_layer(
+                    pos_embedding, sequence_length,
+                    int(self.hparams.pos_embed_size / 2))
+                pos_embedding = tf.reshape(pos_embedding, [-1, shape[1], self.hparams.pos_embed_size])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
                 [word_embedding, pos_embedding], axis=-1)
@@ -269,19 +281,26 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
+        max_seq_len = utils.get_max(sequence_length)
 
-        max_len = max(sequence_length)
-        sentences_indexed = sentences_indexed[:, :max_len]
-        pos_indexed = pos_indexed[:, :max_len]
+        sentences_indexed = sentences_indexed[:, :max_seq_len, :]
+        pos_indexed = pos_indexed[:, :max_seq_len, :]
         if heads_indexed is not None:
-            heads_indexed = heads_indexed[:, :max_len]
+            heads_indexed = heads_indexed[:, :max_seq_len]
         if rels_indexed is not None:
-            rels_indexed = rels_indexed[:, :max_len]
+            rels_indexed = rels_indexed[:, :max_seq_len]
+        
+        word_length = utils.get_word_length(
+            sentences_indexed, self.word_pad_id)
+        max_word_len = utils.get_max(word_length)
+        sentences_indexed = sentences_indexed[:, :, :max_word_len]
+        pos_indexed = pos_indexed[:, :, :max_word_len]
 
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
+            self.word_length: word_length,
         }
 
         if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
@@ -426,3 +445,15 @@ def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, b
     else:
         blin = tf.transpose(blin, perm=[0, 1, 3, 2])
     return blin
+
+
+def bilstm_layer(inputs, sequence_length, num_units):
+    cell = tf.contrib.rnn.LSTMCell
+    cell_fw = cell(num_units, state_is_tuple=True)
+    cell_bw = cell(num_units, state_is_tuple=True)
+    _, ((_, output_fw), (_, output_bw)) = tf.nn.bidirectional_dynamic_rnn(
+        cell_fw, cell_bw,
+        inputs, sequence_length=sequence_length,
+        dtype=tf.float32)
+    final_states = tf.concat([output_fw, output_bw], axis=-1)
+    return final_states
