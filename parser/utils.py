@@ -95,14 +95,12 @@ def load_dataset(filepath, flags):
         save_vocab((sentences, sentences_only, pos, rels, heads,
                     maxlen, maxwordlen), dataset_multiindex_filepath)
 
-    # pdb.set_trace()
     _, heads_features_dict, _ = initialize_embed_features(
         heads, 100, maxlen, starti=0, return_embeddings=False)
 
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(
         pos, flags.pos_embed_size, maxlen, split_word=True)
-    # print(f'len(pos_features_dict)={len(pos_features_dict)}')
-
+  
     '''
     pos_indexed = get_indexed_sequences(
         pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
@@ -131,7 +129,6 @@ def load_dataset(filepath, flags):
     if flags.pos_embed_file:
         pos_embedding_matrix, pos_features_dict = load_embed_model(
             flags.pos_embed_file, words_dict=pos_features_dict, embedding_size=flags.pos_embed_size)
-    # print(f'len(pos_features_dict)={len(pos_features_dict)}')
 
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(

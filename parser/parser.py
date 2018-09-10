@@ -218,8 +218,7 @@ def main(flags, log_f):
     val_heads_padded = utils.get_indexed_sequences(
         val_heads, heads_features_dict, val_maxlen, just_pad=True)
 
-    dev_data = (val_sentences_indexed, val_sentences_only_indexed, val_pos_indexed,
-                val_rels_indexed, val_heads_padded)
+    dev_data = (val_sentences_indexed, val_sentences_only_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
 
     best_eval_uas = .0
     stop_count = 0

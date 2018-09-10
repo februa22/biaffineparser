@@ -294,7 +294,6 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
-
         max_len = max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_len]
         sentences_only_indexed = sentences_only_indexed[:, :max_len]
