@@ -106,30 +106,32 @@ class Model(object):
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
-            trainable = False if self.hparams.word_embed_file else True
-            _word_embedding = tf.Variable(
-                self.word_embedding, trainable=trainable,
-                name="_word_embedding", dtype=tf.float32)
-            word_embedding = tf.nn.embedding_lookup(
-                _word_embedding, self.word_ids, name="word_embedding")
-            shape = tf.shape(word_embedding)
-            seq_len = tf.reduce_max(self.sequence_length)
-            word_len = tf.reduce_max(self.word_length)
-            word_embedding = tf.reshape(word_embedding, [shape[0], self.max_seq_len, self.max_word_len * self.hparams.word_embed_size])
-            if self.embed_dropout > 0.0:
-                keep_prob = 1.0 - self.embed_dropout
-                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+            with tf.variable_scope('word'):
+                trainable = False if self.hparams.word_embed_file else True
+                _word_embedding = tf.Variable(
+                    self.word_embedding, trainable=trainable,
+                    name="_word_embedding", dtype=tf.float32)
+                word_embedding = tf.nn.embedding_lookup(
+                    _word_embedding, self.word_ids, name="word_embedding")
+                shape = tf.shape(word_embedding)
+                seq_len = tf.reduce_max(self.sequence_length)
+                word_len = tf.reduce_max(self.word_length)
+                word_embedding = tf.reshape(word_embedding, [shape[0], shape[1], shape[2] * self.hparams.word_embed_size])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
-            trainable = False if self.hparams.pos_embed_file else True
-            _pos_embedding = tf.Variable(
-                self.pos_embedding, trainable=trainable,
-                name="_pos_embedding", dtype=tf.float32)
-            pos_embedding = tf.nn.embedding_lookup(
-                _pos_embedding, self.pos_ids, name="pos_embedding")
-            pos_embedding = tf.reshape(pos_embedding, [shape[0], self.max_seq_len, self.max_word_len * self.hparams.pos_embed_size])
-            if self.embed_dropout > 0.0:
-                keep_prob = 1.0 - self.embed_dropout
-                pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
+            with tf.variable_scope('pos'):
+                trainable = False if self.hparams.pos_embed_file else True
+                _pos_embedding = tf.Variable(
+                    self.pos_embedding, trainable=trainable,
+                    name="_pos_embedding", dtype=tf.float32)
+                pos_embedding = tf.nn.embedding_lookup(
+                    _pos_embedding, self.pos_ids, name="pos_embedding")
+                pos_embedding = tf.reshape(pos_embedding, [shape[0], shape[1], shape[2] * self.hparams.pos_embed_size])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             self.embeddings = tf.concat(
                 [word_embedding, pos_embedding], axis=-1)
@@ -278,17 +280,20 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
-        word_length = utils.get_word_length(
-            sentences_indexed, self.word_pad_id)
-
         max_seq_len = utils.get_max(sequence_length)
-        max_word_len = utils.get_max(word_length)
-        sentences_indexed = sentences_indexed[:, :max_seq_len, :max_word_len]
-        pos_indexed = pos_indexed[:, :max_seq_len, :max_word_len]
+
+        sentences_indexed = sentences_indexed[:, :max_seq_len, :]
+        pos_indexed = pos_indexed[:, :max_seq_len, :]
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_seq_len]
         if rels_indexed is not None:
             rels_indexed = rels_indexed[:, :max_seq_len]
+
+        word_length = utils.get_word_length(
+            sentences_indexed, self.word_pad_id)
+        max_word_len = utils.get_max(word_length)
+        sentences_indexed = sentences_indexed[:, :, :max_word_len]
+        pos_indexed = pos_indexed[:, :, :max_word_len]
 
         feed_dict = {
             self.word_ids: sentences_indexed,
