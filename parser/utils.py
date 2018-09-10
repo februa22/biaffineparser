@@ -102,10 +102,10 @@ def load_dataset(filepath, flags):
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
     if flags.word_embed_file:
         words_embeddings_matrix, words_dict = load_embed_model(
-            flags.word_embed_file, words_dict=words_dict)
+            flags.word_embed_file, words_dict=words_dict, embedding_size=flags.word_embed_size)
     if flags.pos_embed_file:
         pos_embedding_matrix, pos_features_dict = load_embed_model(
-            flags.pos_embed_file, words_dict=pos_features_dict)
+            flags.pos_embed_file, words_dict=pos_features_dict, embedding_size=flags.pos_embed_size)
 
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(sentences, words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
@@ -134,7 +134,7 @@ def load_dataset(filepath, flags):
     return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
 #loading embed model
-def load_embed_model(embed_file_path, words_dict):
+def load_embed_model(embed_file_path, words_dict, embedding_size):
     print("Loading Pre-trained Embedding Model and merging with current dict")
     glove_dict = {}
     with open(embed_file_path, 'r', encoding='utf-8') as f:
@@ -148,7 +148,7 @@ def load_embed_model(embed_file_path, words_dict):
                 if word not in words_dict:
                     words_dict[word] = len(words_dict)
         #get embedding_size: ex) 200
-        embedding_size = len(embedding)
+        #embedding_size = len(embedding)
     
     #create empty embedding matrix with zeros
     #create random embedding matrix for initialization

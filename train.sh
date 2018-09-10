@@ -11,16 +11,22 @@ num_train_epochs=100 # Num epochs to train.
 batch_size=128  # Batch size.
 word_embed_size=200  # The embedding dimension for the word's embedding.
 word_embed_file=embeddings/words.pos.original.vec  # Use the pre-trained embedding. If not provided, use random values.
-pos_embed_file=embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
+pos_embed_file= #embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
 word_embed_matrix_file=embeddings/word_embed_matrix.txt
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
+
+#added parameters
+num_lstm_units=500
+num_lstm_layers=4
+arc_mlp_units=600
+label_mlp_units=200
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
 
 #export CUDA_VISIBLE_DEVICES
-export CUDA_VISIBLE_DEVICES=1,2,3
+export CUDA_VISIBLE_DEVICES=2
 echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
 echo "train"
@@ -37,4 +43,8 @@ python -m parser.parser \
     --word_embed_size=${word_embed_size}    \
     --word_embed_matrix_file=${word_embed_matrix_file} \
     --pos_embed_matrix_file=${pos_embed_matrix_file}    \
-    --embed_dropout=${embed_dropout}
+    --embed_dropout=${embed_dropout} \
+    --num_lstm_units=${num_lstm_units} \
+    --num_lstm_layers=${num_lstm_layers} \
+    --arc_mlp_units=${arc_mlp_units} \
+    --label_mlp_units=${label_mlp_units}
