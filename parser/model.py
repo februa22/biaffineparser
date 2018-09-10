@@ -297,7 +297,7 @@ class Model(object):
 
         max_len = max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_len]
-        sentences_only_indexed = sentences_indexed[:, :max_len]
+        sentences_only_indexed = sentences_only_indexed[:, :max_len]
         pos_indexed = pos_indexed[:, :max_len]
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_len]

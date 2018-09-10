@@ -124,7 +124,7 @@ def load_dataset(filepath, flags):
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
     if flags.word_only_embed_file:
         words_only_embedding_matrix, words_only_dict = load_embed_model(
-            flags.word_only_embed_file, words_dict=words_only_dict, embedding_size=200)
+            flags.word_only_embed_file, words_dict=words_only_dict, embedding_size=flags.word_only_embed_size)
     if flags.word_embed_file:
         words_embeddings_matrix, words_dict = load_embed_model(
             flags.word_embed_file, words_dict=words_dict, embedding_size=flags.word_embed_size)

@@ -32,7 +32,7 @@ def add_arguments(parser):
                         help='Number of hidden units for MLP of label')
     parser.add_argument('--word_embed_size', type=int, default=100,
                         help="The embedding dimension for the word's embedding.")
-    #
+    #new
     parser.add_argument('--word_only_embed_size', type=int, default=100,
                         help="The embedding dimension for the word's embedding.")                    
     parser.add_argument('--pos_embed_size', type=int, default=100,
@@ -117,7 +117,7 @@ def str2bool(v):
 
 
 def evaluate(model, data, batch_size):
-    (val_sentences_indexed, val_pos_indexed, val_sentences_only_indexed,
+    (val_sentences_indexed, val_sentences_only_indexed, val_pos_indexed,
      val_rels_indexed, val_heads_padded) = data
     total_eval_loss, total_eval_uas, total_eval_las = [], [], []
     total_head_preds, total_rel_preds = [], []
@@ -206,6 +206,7 @@ def main(flags, log_f):
     # embed vadliation(dev) dataset
     val_sentences, val_sentences_only, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
         flags.dev_filename)
+
     val_sentences_indexed = utils.get_indexed_sequences(
         val_sentences, words_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_sentences_only_indexed = utils.get_indexed_sequences(
@@ -256,8 +257,8 @@ def main(flags, log_f):
         epoch += 1
         # reset progbar each epoch
         progbar = Progbar(len(sentences_indexed))
-        sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
-            sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
+        sentences_indexed, sentences_only_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
+            sentences_indexed, sentences_only_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
 
         # iterate over the train-set
         for sentences_indexed_batch, sentences_only_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
