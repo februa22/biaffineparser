@@ -4,7 +4,7 @@
 ############## START ###################
 train_filename=data/sejong.train.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
-out_dir=parser/model_11 # Store log/model files.
+out_dir=parser/model_14 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
@@ -22,7 +22,6 @@ embed_dropout=0.33
 
 [ -d foo ] || mkdir ${out_dir}
 
-#export CUDA_VISIBLE_DEVICES
 export CUDA_VISIBLE_DEVICES=2
 echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
@@ -30,12 +29,9 @@ echo "train"
 python -m parser.parser \
     --train_filename=${train_filename} \
     --dev_filename=${dev_filename} \
-    --out_dir=${out_dir} \
     --word_embed_file=${word_embed_file} \
     --word_only_embed_file=${word_only_embed_file} \
     --pos_embed_file=${pos_embed_file} \
-    --device=${device} \
-    --debug=${debug} \
     --num_train_epochs=${num_train_epochs} \
     --batch_size=${batch_size} \
     --word_embed_size=${word_embed_size}    \
