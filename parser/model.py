@@ -112,10 +112,10 @@ class Model(object):
                 name="_word_embedding", dtype=tf.float32)
             word_embedding = tf.nn.embedding_lookup(
                 _word_embedding, self.word_ids, name="word_embedding")
-            shape = tf.shape(self.word_ids)
+            shape = tf.shape(word_embedding)
             seq_len = tf.reduce_max(self.sequence_length)
             word_len = tf.reduce_max(self.word_length)
-            word_embedding = tf.reshape(word_embedding, [shape[0], self.max_seq_len, 16 * self.hparams.word_embed_size])
+            word_embedding = tf.reshape(word_embedding, [shape[0], self.max_seq_len, self.max_word_len * self.hparams.word_embed_size])
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
@@ -126,7 +126,7 @@ class Model(object):
                 name="_pos_embedding", dtype=tf.float32)
             pos_embedding = tf.nn.embedding_lookup(
                 _pos_embedding, self.pos_ids, name="pos_embedding")
-            pos_embedding = tf.reshape(pos_embedding, [shape[0], self.max_seq_len, 16 * self.hparams.pos_embed_size])
+            pos_embedding = tf.reshape(pos_embedding, [shape[0], self.max_seq_len, self.max_word_len * self.hparams.pos_embed_size])
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
@@ -281,10 +281,10 @@ class Model(object):
         word_length = utils.get_word_length(
             sentences_indexed, self.word_pad_id)
 
-        max_seq_len = max(sequence_length)
-        max_word_len = 16
-        sentences_indexed = sentences_indexed[:, :max_seq_len, :]
-        pos_indexed = pos_indexed[:, :max_seq_len, :]
+        max_seq_len = utils.get_max(sequence_length)
+        max_word_len = utils.get_max(word_length)
+        sentences_indexed = sentences_indexed[:, :max_seq_len, :max_word_len]
+        pos_indexed = pos_indexed[:, :max_seq_len, :max_word_len]
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_seq_len]
         if rels_indexed is not None:
@@ -295,8 +295,6 @@ class Model(object):
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
             self.word_length: word_length,
-            self.max_seq_len: max_seq_len,
-            self.max_word_len: max_word_len,
         }
 
         if self.mode == tf.contrib.learn.ModeKeys.TRAIN:

@@ -331,6 +331,10 @@ def get_word_length(data, pad_id, axis=2):
     return np.sum(np.not_equal(data, pad_id), axis=axis)
 
 
+def get_max(a):
+    return np.amax(a)
+
+
 def print_out(s, f=None, new_line=True):
     """Similar to print but with support to flush and output to a file."""
     if isinstance(s, bytes):
