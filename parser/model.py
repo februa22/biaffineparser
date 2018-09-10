@@ -158,6 +158,7 @@ class Model(object):
                     name="_pos_embedding", dtype=tf.float32)
                 pos_embedding = tf.nn.embedding_lookup(
                     _pos_embedding, self.pos_ids, name="pos_embedding")
+                shape = tf.shape(pos_embedding)
                 pos_embedding = tf.reshape(
                     pos_embedding, [-1, shape[2], self.hparams.pos_embed_size])
                 pos_embedding = bilstm_layer(

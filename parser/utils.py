@@ -100,7 +100,7 @@ def load_dataset(filepath, flags):
 
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(
         pos, flags.pos_embed_size, maxlen, split_word=True)
-  
+
     '''
     pos_indexed = get_indexed_sequences(
         pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
@@ -171,7 +171,7 @@ def load_dataset(filepath, flags):
     json.dump(rels_features_dict, open(
         'embeddings/rels_features_dict.json', 'w'), indent=4)
 
-    #pdb.set_trace()
+    # pdb.set_trace()
     return sentences_indexed, sentences_only_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, words_only_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, words_only_embedding_matrix, pos_embedding_matrix, maxlen
 
 
