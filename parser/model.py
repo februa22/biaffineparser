@@ -54,7 +54,7 @@ class Model(object):
         self.create_biaffine_layer()
         self.create_loss_op()
         self.create_train_op()
-        self.create_uas_and_las_op()
+        self.create_uas_and_las_op_with_crf()
 
     def build(self):
         # Check out_dir
@@ -201,15 +201,25 @@ class Model(object):
         mean_loss = tf.reduce_mean(masked_loss)
         return mean_loss
 
+    def compute_loss_with_crf(self, logits, labels, sequence_lengths):
+        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(
+                inputs=logits,
+                tag_indices=labels,
+                sequence_lengths=sequence_lengths)
+        loss = tf.reduce_mean(-log_likelihood)
+        return loss, transition_params
+
     # loss logit
     def create_loss_op(self):
-        max_len = tf.reduce_max(self.sequence_length)
-        gold_heads = tf.one_hot(self.head_ids, max_len)
+        shape = tf.shape(self.word_ids)
+
+        gold_heads = tf.one_hot(self.head_ids, shape[1])
         loss_heads = self.compute_loss(
             self.arc_logits, gold_heads, self.sequence_length)
-        gold_rels = tf.one_hot(self.rel_ids, self.n_classes)
-        loss_rels = self.compute_loss(
-            self.label_logits, gold_rels, self.sequence_length)
+
+        self.label_logits = tf.reshape(self.label_logits, [-1, shape[1], self.n_classes])
+        loss_rels, self.rel_transition_params = self.compute_loss_with_crf(
+            self.label_logits, self.rel_ids, self.sequence_length)
         self.train_loss = loss_heads + loss_rels
 
     def create_train_op(self):
@@ -246,6 +256,29 @@ class Model(object):
                 self.rel_preds[:, 1:], sequence_mask[:, 1:])
             masked_rel_ids = tf.boolean_mask(
                 self.rel_ids[:, 1:], sequence_mask[:, 1:])
+            rel_correct = tf.equal(self.masked_rel_preds, masked_rel_ids)
+            head_rel_correct = tf.logical_and(head_correct, rel_correct)
+            self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.float32))
+
+    def create_uas_and_las_op_with_crf(self):
+        with tf.variable_scope('uas'):
+            sequence_mask = tf.sequence_mask(self.sequence_length)
+            self.head_preds = tf.argmax(
+                self.arc_logits, axis=-1, output_type=tf.int32)
+            self.masked_head_preds = tf.boolean_mask(
+                self.head_preds[:, 1:], sequence_mask[:, 1:])
+            masked_head_ids = tf.boolean_mask(
+                self.head_ids[:, 1:], sequence_mask[:, 1:])
+            head_correct = tf.equal(self.masked_head_preds, masked_head_ids)
+            self.uas = tf.reduce_mean(tf.cast(head_correct, tf.float32))
+        with tf.variable_scope('las'):
+            decode_rels, _ = tf.contrib.crf.crf_decode(
+                self.label_logits,
+                self.rel_transition_params,
+                self.sequence_length)
+            self.masked_rel_preds = tf.boolean_mask(
+                decode_rels[:, 1:], sequence_mask[:, 1:])
+            masked_rel_ids = tf.boolean_mask(self.rel_ids[:, 1:], sequence_mask[:, 1:])
             rel_correct = tf.equal(self.masked_rel_preds, masked_rel_ids)
             head_rel_correct = tf.logical_and(head_correct, rel_correct)
             self.las = tf.reduce_mean(tf.cast(head_rel_correct, tf.float32))
