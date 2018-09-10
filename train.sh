@@ -39,8 +39,8 @@ python -m parser.parser \
     --num_train_epochs=${num_train_epochs} \
     --batch_size=${batch_size} \
     --word_embed_size=${word_embed_size}    \
-    --word_only_embed_size=${word_only_embed_size}
+    --word_only_embed_size=${word_only_embed_size}  \
     --word_embed_matrix_file=${word_embed_matrix_file} \
-    --word_only_embed_matrix_file=${word_only_embed_matrix_file}
+    --word_only_embed_matrix_file=${word_only_embed_matrix_file} \
     --pos_embed_matrix_file=${pos_embed_matrix_file}    \
     --embed_dropout=${embed_dropout}

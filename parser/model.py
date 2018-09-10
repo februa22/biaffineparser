@@ -12,10 +12,12 @@ class Model(object):
                  rels_vocab_table, heads_vocab_table, word_embedding, word_only_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
+        print(f'word_only_vocab_table: {len(word_only_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
+        print(f'word_only_embedding: {word_only_embedding.shape}')
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.word_vocab_table = word_vocab_table
@@ -94,7 +96,7 @@ class Model(object):
 
         # 한국    
         self.word_only_ids = tf.placeholder(
-            tf.int32, shape=[None, None, None], name='word_ids')
+            tf.int32, shape=[None, None, None], name='word_only_ids')
 
         # NNP
         self.pos_ids = tf.placeholder(
@@ -109,6 +111,7 @@ class Model(object):
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
+            
             trainable = False if self.hparams.word_embed_file else True
             _word_embedding = tf.Variable(
                 self.word_embedding, trainable=trainable,
@@ -121,7 +124,7 @@ class Model(object):
                 word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
             #word_only_embedding
-            trainable = False if self.hparams.pos_embed_file else True
+            trainable = False if self.hparams.word_only_embed_file else True
             _word_only_embedding = tf.Variable(
                 self.word_only_embedding, trainable=trainable,
                 name="_word_only_embedding", dtype=tf.float32)
