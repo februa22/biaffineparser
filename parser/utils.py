@@ -97,7 +97,7 @@ def load_dataset(filepath, flags):
 
     heads_padded = get_indexed_sequences(heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
     
-    _, words_dict, words_embeddings_matrix = initialize_embed_features(sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
+    _, words_dict, words_embeddings_matrix = initialize_embed_features(sentences, flags.word_embed_size, maxlen, split_word=True, starti=0, normalize=True)
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
     if flags.word_embed_file:
@@ -217,7 +217,16 @@ def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=Fals
     return indexed_sequences
 
 
-def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True, split_word: bool=False):
+def normalize_word(word):
+    if '/SL' in word:
+        word = '<SL>/SL'
+    elif '/SH' in word:
+        word = '<SH>/SH'
+    elif '/SN' in word:
+        word = '<SN>/SN'
+    return word
+
+def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True, split_word: bool=False, normalize: bool=False):
     """
     Takes a list of sequences, for example sentences, pos tags or relations.
     Initialize a dict and the random embedding matrix to train
@@ -234,6 +243,8 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
             #어절을 잘라야할 경우
             if split_word:
                 for word in str(f).strip().split('|'):
+                    if normalize:
+                        word = normalize_word(word)
                     if features_dict.get(word, None) is None:
                         features_dict[word] = i
                         i += 1
