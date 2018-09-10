@@ -129,7 +129,7 @@ class Model(object):
                 self.word_only_embedding, trainable=trainable,
                 name="_word_only_embedding", dtype=tf.float32)
             word_only_embedding = tf.nn.embedding_lookup(
-                _word_only_embedding, self.word_ids, name="word_only_embedding")
+                _word_only_embedding, self.word_only_ids, name="word_only_embedding")
             word_only_embedding = tf.reduce_mean(word_only_embedding, axis=-2)
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
@@ -146,6 +146,7 @@ class Model(object):
                 keep_prob = 1.0 - self.embed_dropout
                 pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
+            #concat
             self.embeddings = tf.concat(
                 [word_embedding, word_only_embedding, pos_embedding], axis=-1)
 
