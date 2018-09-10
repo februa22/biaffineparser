@@ -28,7 +28,7 @@ def main(flags):
     print(f"writing START: output_file={output_file}")
     with open(output_file, 'w', encoding='utf-8') as f:
         #write header
-        f.write('\t'.join(['sent_id', 'eoj_id', 'eoj', 'pos', 'head_id', 'label']) + "\n")
+        f.write('\t'.join(['sent_id', 'eoj_id', 'eoj', 'pos', 'head_id', 'label', 'eoj_only']) + "\n")
         sent_id = 0
         for index, row in sejong_df.iterrows():
             #initiailization
@@ -36,12 +36,12 @@ def main(flags):
             if eoj_id == 1:
                 sent_id += 1
             eoj = row['eoj_kangwon']
-            #eoj_without_pos = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split('|')])
+            eoj_only = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split('|')])
             head_id = row['head_id'] 
             label = row['label']
             pos = '|'.join([morph[morph.rfind('/')+1:] for morph in str(eoj).strip().split('|')])
             
-            f.write('\t'.join([str(s) for s in [sent_id, eoj_id, eoj, pos, head_id, label]]) + "\n")
+            f.write('\t'.join([str(s) for s in [sent_id, eoj_id, eoj, pos, head_id, label, eoj_only]]) + "\n")
             if index % 10000 == 0:
                 print(f'writing line index={index}')
     print('writing output_file END')

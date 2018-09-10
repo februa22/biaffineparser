@@ -86,8 +86,15 @@ class Model(object):
 
     def create_placeholders(self):
         # word_ids, pos_ids shape: (?,?,?) => (batch_size, sequence_words, word_morphs)
+        # 한국/NNP
         self.word_ids = tf.placeholder(
             tf.int32, shape=[None, None, None], name='word_ids')
+
+        # 한국    
+        self.word_only_ids = tf.placeholder(
+            tf.int32, shape=[None, None, None], name='word_ids')
+
+        # NNP
         self.pos_ids = tf.placeholder(
             tf.int32, shape=[None, None, None], name='pos_ids')
 

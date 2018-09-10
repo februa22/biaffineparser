@@ -2,7 +2,7 @@
 
 #### Set your hyper-parameters here ####
 ############## START ###################
-train_filename=data/sejong.train.csv # Path of train dataset.
+train_filename=data/sejong.test.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
 out_dir=parser/model_10 # Store log/model files.
 device=gpu # device to use
@@ -15,12 +15,6 @@ pos_embed_file= #embeddings/words.tag.original.vec  # Use the pre-trained embedd
 word_embed_matrix_file=embeddings/word_embed_matrix.txt
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
-
-#added parameters
-num_lstm_units=500
-num_lstm_layers=4
-arc_mlp_units=600
-label_mlp_units=200
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
@@ -43,8 +37,4 @@ python -m parser.parser \
     --word_embed_size=${word_embed_size}    \
     --word_embed_matrix_file=${word_embed_matrix_file} \
     --pos_embed_matrix_file=${pos_embed_matrix_file}    \
-    --embed_dropout=${embed_dropout} \
-    --num_lstm_units=${num_lstm_units} \
-    --num_lstm_layers=${num_lstm_layers} \
-    --arc_mlp_units=${arc_mlp_units} \
-    --label_mlp_units=${label_mlp_units}
+    --embed_dropout=${embed_dropout}
