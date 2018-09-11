@@ -4,7 +4,7 @@
 ############## START ###################
 train_filename=data/sejong.train.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
-out_dir=parser/model_15 # Store log/model files.
+out_dir=parser/model_17 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
@@ -18,6 +18,8 @@ word_embed_matrix_file=embeddings/word_embed_matrix.txt
 word_only_embed_matrix_file=embeddings/word_only_embed_matrix.txt #new
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
+
+num_lstm_layers=4
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
@@ -42,4 +44,5 @@ python -m parser.parser \
     --word_embed_matrix_file=${word_embed_matrix_file} \
     --word_only_embed_matrix_file=${word_only_embed_matrix_file} \
     --pos_embed_matrix_file=${pos_embed_matrix_file} \
-    --embed_dropout=${embed_dropout}
+    --embed_dropout=${embed_dropout} \
+    --num_lstm_layers=${num_lstm_layers}
