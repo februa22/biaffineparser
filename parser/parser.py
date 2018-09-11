@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """ TensorFlow Deep Biaffine Attention model implementation. """
 import argparse
+import json
 import os
 import pdb
 
@@ -10,8 +11,6 @@ from sklearn.utils import shuffle
 from . import utils
 from .model import Model
 from .progress_bar import Progbar
-
-import json
 
 FLAGS = None
 
@@ -86,10 +85,14 @@ def add_arguments(parser):
     # Misc
     parser.add_argument('--device', type=str,
                         help='Device to use')
-
-    # Debug
     parser.add_argument('--debug', type=str2bool,
                         help='Use debugger to track down bad values during training', default=True)
+
+    # Inference
+    parser.add_argument("--inference_input_file", type=str, default=None,
+                        help="Set to the text to decode.")
+    parser.add_argument("--inference_output_file", type=str, default=None,
+                        help="Output file to store decoding results.")
 
 
 def str2bool(v):
@@ -130,7 +133,7 @@ def evaluate(model, data, batch_size):
     return eval_loss, eval_uas, eval_las, total_head_preds, total_rel_preds, lengths
 
 
-def evaluate_and_write_predictions(flags, model, data, inference_input_file):
+def evaluate_and_write_predictions(flags, model, data, inference_input_file, inference_output_file):
     model.new_sess_and_restore(os.path.join(flags.out_dir, 'parser.ckpt'))
     eval_result = evaluate(model, data, flags.batch_size)
     (_, uas, las, all_head_preds, all_rel_preds_ids, lengths) = eval_result
@@ -141,10 +144,17 @@ def evaluate_and_write_predictions(flags, model, data, inference_input_file):
 
     utils.replace_and_save_dataset(inference_input_file,
                                    all_head_preds, all_rel_preds,
-                                   os.path.join(flags.out_dir, 'dev_prediction.csv'))
+                                   inference_output_file)
 
 
-def main(flags, log_f):
+def train(flags, log_f=None):
+    log_filepath = os.path.join(flags.out_dir, 'log.txt')
+    log_f = open(log_filepath, 'wb')
+    utils.print_out('TRAIN started...', log_f)
+    utils.print_out('#'*30, log_f)
+    utils.print_out(str(flags), log_f)
+    utils.print_out('#'*30, log_f)
+
     # loading trainind dataset and embed
     (sentences_indexed,  # (12543, 160)
         pos_indexed,  # (12543, 160)
@@ -278,18 +288,58 @@ def main(flags, log_f):
             break
         else:
             stop_count += 1
-    evaluate_and_write_predictions(flags, model, dev_data, flags.dev_filename)
+    log_f.close()
+    dev_output_file = os.path.join(flags.out_dir, 'dev.inference.tsv')
+    evaluate_and_write_predictions(flags, model, dev_data, flags.dev_filename, dev_output_file)
+
+
+def inference(flags, log_f=None):
+    utils.print_out('INFERENCE started...')
+
+    words_dict = utils.load_vocab(os.path.join(
+        flags.out_dir, flags.word_vocab_name))
+    pos_features_dict = utils.load_vocab(os.path.join(
+        flags.out_dir, flags.pos_vocab_name))
+    rels_features_dict = utils.load_vocab(os.path.join(
+        flags.out_dir, flags.rel_vocab_name))
+    heads_features_dict = utils.load_vocab(os.path.join(
+        flags.out_dir, flags.head_vocab_name))
+
+    word_embedding, _ = utils.load_embed_model(flags.word_embed_file, words_dict, flags.word_embed_size)
+    pos_embedding, _ = utils.load_embed_model(flags.pos_embed_file, pos_features_dict, flags.pos_embed_size)
+
+    val_sentences, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
+        flags.inference_input_file)
+
+    val_sentences_indexed = utils.get_indexed_sequences(
+        val_sentences, words_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
+    val_pos_indexed = utils.get_indexed_sequences(
+        val_pos, pos_features_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
+    val_rels_indexed = utils.get_indexed_sequences(
+        val_rels, rels_features_dict, val_maxlen)
+    val_heads_padded = utils.get_indexed_sequences(
+        val_heads, heads_features_dict, val_maxlen, just_pad=True)
+
+    test_data = (val_sentences_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
+
+    model = Model(
+        flags,
+        words_dict,
+        pos_features_dict,
+        rels_features_dict,
+        heads_features_dict,
+        word_embedding,
+        pos_embedding)
+
+    evaluate_and_write_predictions(flags, model, test_data, flags.inference_input_file, flags.inference_output_file)
 
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)
     FLAGS = argparser.parse_args()
-    log_filepath = os.path.join(FLAGS.out_dir, 'log.txt')
-    log_file = open(log_filepath, 'wb')
-    utils.print_out('#'*30, log_file)
-    utils.print_out(str(FLAGS), log_file)
-    utils.print_out('#'*30, log_file)
-    main(FLAGS, log_file)
-    log_file.close()
-    utils.print_out('Done', log_file)
+    if FLAGS.inference_input_file:
+        inference(FLAGS)
+    else:
+        train(FLAGS)
+    utils.print_out('Done')
