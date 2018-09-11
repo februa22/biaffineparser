@@ -413,9 +413,11 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
+        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32)
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
+        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer())
     }
     return weights, biases
 
@@ -423,9 +425,11 @@ def create_weight_and_bias(n_input, n_output):
 def multilayer_perceptron(x, weights, biases, dropout):
     layer_1 = tf.add(tf.matmul(x, weights['w1']), biases['b1'])
     layer_1 = tf.nn.relu(layer_1)
+    out_layer = tf.add(tf.matmul(layer_1, weights['w2']), biases['b2'])
     if dropout > 0.0:
         keep_prob = 1.0 - dropout
-        layer_1 = tf.nn.dropout(layer_1, keep_prob)
+        #layer_1 = tf.nn.dropout(layer_1, keep_prob)
+        out_layer = tf.nn.dropout(out_layer, keep_prob)
     return layer_1
 
 
