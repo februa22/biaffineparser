@@ -83,28 +83,22 @@ def load_dataset(filepath, flags):
     dataset_multiindex_filepath = 'embeddings/dataset_multiindex.pkl'
     if os.path.isfile(dataset_multiindex_filepath):
         print('dataset_multiindex_file exists, loading dataset_multiindex_file...')
-        (sentences, sentences_only, pos, rels, heads, maxlen,
-         maxwordlen) = load_vocab(dataset_multiindex_filepath)
-        # pass
+        (sentences, chars, pos, rels, heads, maxlen,
+         maxwordlen, maxcharlen) = load_vocab(dataset_multiindex_filepath)
     else:
         print('Creating dataset_multiindex_file...')
-        (sentences, sentences_only, pos, rels, heads, maxlen,
-         maxwordlen) = get_dataset_multiindex(filepath)
+        (sentences, chars, pos, rels, heads, maxlen,
+            maxwordlen, maxcharlen) = get_dataset_multiindex(filepath)
         print(
             f'Saving dataset_multiindex_file... : {dataset_multiindex_filepath}')
-        save_vocab((sentences, sentences_only, pos, rels, heads,
-                    maxlen, maxwordlen), dataset_multiindex_filepath)
+        save_vocab((sentences, chars, pos, rels, heads,
+                maxlen, maxwordlen, maxcharlen), dataset_multiindex_filepath)
 
     _, heads_features_dict, _ = initialize_embed_features(
         heads, 100, maxlen, starti=0, return_embeddings=False)
 
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(
         pos, flags.pos_embed_size, maxlen, split_word=True)
-
-    '''
-    pos_indexed = get_indexed_sequences(
-        pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
-    '''
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(
         rels, 100, maxlen, starti=0)
@@ -115,17 +109,17 @@ def load_dataset(filepath, flags):
     _, words_dict, words_embeddings_matrix = initialize_embed_features(
         sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
 
-    # word_dic for sentences only
-    _, words_only_dict, _ = initialize_embed_features(
-        sentences_only, flags.word_only_embed_size, maxlen, split_word=True, starti=0)
+    # dic for char
+    _, chars_dict, chars_embedding_matrix = initialize_embed_features(
+        chars, flags.char_embed_size, maxlen, split_word=True, starti=0)
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
-    if flags.word_only_embed_file:
-        words_only_embedding_matrix, words_only_dict = load_embed_model(
-            flags.word_only_embed_file, words_dict=words_only_dict, embedding_size=flags.word_only_embed_size)
     if flags.word_embed_file:
         words_embeddings_matrix, words_dict = load_embed_model(
             flags.word_embed_file, words_dict=words_dict, embedding_size=flags.word_embed_size)
+    if flags.char_embed_file:
+        chars_embedding_matrix, chars_dict = load_embed_model(
+            flags.char_embed_file, words_dict=chars_dict, embedding_size=flags.char_embed_size)        
     if flags.pos_embed_file:
         pos_embedding_matrix, pos_features_dict = load_embed_model(
             flags.pos_embed_file, words_dict=pos_features_dict, embedding_size=flags.pos_embed_size)
@@ -133,10 +127,9 @@ def load_dataset(filepath, flags):
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(
         sentences, vocab=words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
-
-    sentences_only_indexed = get_indexed_sequences(
-        sentences_only, vocab=words_only_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
-
+    # maxcharlen에 유의
+    chars_indexed = get_indexed_sequences(
+        chars, vocab=chars_dict, maxl=maxlen, maxwordl=maxcharlen, split_word=True)
     pos_indexed = get_indexed_sequences(
         pos, vocab=pos_features_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
@@ -145,22 +138,22 @@ def load_dataset(filepath, flags):
         print(
             f'saving words_embeddings_matrix: {flags.word_embed_matrix_file}')
         np.savetxt(flags.word_embed_matrix_file, words_embeddings_matrix)
-    if flags.word_only_embed_matrix_file:
+    if flags.char_embed_matrix_file:
         print(
-            f'saving words_only_embeddings_matrix: {flags.word_only_embed_matrix_file}')
-        np.savetxt(flags.word_only_embed_matrix_file,
-                   words_only_embedding_matrix)
+            f'saving char_embed_matrix_file: {flags.char_embed_matrix_file}')
+        np.savetxt(flags.char_embed_matrix_file,
+                   chars_embedding_matrix)
     if flags.pos_embed_matrix_file:
         print(f'saving pos_embeddings_matrix: {flags.pos_embed_matrix_file}')
         np.savetxt(flags.pos_embed_matrix_file, pos_embedding_matrix)
 
     # dumping dictionaries
-    print('dumping words_only_dict')
-    json.dump(words_only_dict, open(
-        'embeddings/words_only_dict.json', 'w'), indent=4, ensure_ascii=False)
     print('dumping words_dict')
     json.dump(words_dict, open('embeddings/words_dict.json', 'w'),
               indent=4, ensure_ascii=False)
+    print('dumping chars_dict')
+    json.dump(chars_dict, open(
+        'embeddings/chars_dict.json', 'w'), indent=4, ensure_ascii=False)
     print('dumping pos_features_dict')
     json.dump(pos_features_dict, open(
         'embeddings/pos_features_dict.json', 'w'), indent=4)
@@ -170,9 +163,8 @@ def load_dataset(filepath, flags):
     print('dumping rels_features_dict')
     json.dump(rels_features_dict, open(
         'embeddings/rels_features_dict.json', 'w'), indent=4)
-
-    # pdb.set_trace()
-    return sentences_indexed, sentences_only_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, words_only_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, words_only_embedding_matrix, pos_embedding_matrix, maxlen
+    pdb.set_trace()
+    return sentences_indexed, chars_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, chars_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, chars_embedding_matrix, pos_embedding_matrix, maxlen
 
 
 # loading embed model
@@ -311,16 +303,19 @@ def get_dataset_multiindex(filepath):
     dataset['head_id'] = dataset['head_id'].apply(lambda x: int(x))
     dataset = dataset.set_index(['sent_id'])
     sentences = []
-    sentences_only = []
+    #sentences_only = []
+    chars = []
     pos = []
     rels = []
     heads = []
     maxlen = 0
     maxwordlen = 0
+    maxcharlen = 0
     for i in dataset.index.unique():
         temp_sent = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['eoj'])
-        temp_sent_only = ['ROOT_START'] + \
-            cast_safe_list(dataset.loc[i]['eoj_only'])
+        #temp_sent_only = ['ROOT_START'] + \
+        #    cast_safe_list(dataset.loc[i]['eoj_only'])
+        temp_chars = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['char'])
         temp_pos = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['pos'])
         temp_rels = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['label'])
         temp_heads = [0] + cast_safe_list(dataset.loc[i]['head_id'])
@@ -328,18 +323,22 @@ def get_dataset_multiindex(filepath):
         pos.append(temp_pos)
         rels.append(temp_rels)
         heads.append(temp_heads)
-        sentences_only.append(temp_sent_only)
+        #sentences_only.append(temp_sent_only)
+        chars.append(temp_chars)
         tempsentlen = len(temp_sent)
         # get longest size of the word (어절)
         tempwordlen = max([len(word.strip().split('|')) for word in temp_sent])
+        tempcharlen = max([len(word.strip().split('|')) for word in temp_chars])
         if tempsentlen > maxlen:
             maxlen = tempsentlen
         if tempwordlen > maxwordlen:
             maxwordlen = tempwordlen
+        if tempcharlen > maxcharlen:
+            maxcharlen = tempcharlen
         if i % 5000 == 0:
             print("reading index=", i)
     # maxwordlen added for getting word length(어절 내의 최대 단어 수)
-    return sentences, sentences_only, pos, rels, heads, maxlen, maxwordlen
+    return sentences, chars, pos, rels, heads, maxlen, maxwordlen, maxcharlen
 
 
 def replace_and_save_dataset(input_file, heads, rels, output_file):

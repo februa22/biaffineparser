@@ -7,25 +7,25 @@ from tensorflow.python import debug as tf_debug
 from . import utils
 
 class Model(object):
-    def __init__(self, hparams, word_vocab_table, word_only_vocab_table, pos_vocab_table,
-                 rels_vocab_table, heads_vocab_table, word_embedding, word_only_embedding, pos_embedding):
+    def __init__(self, hparams, word_vocab_table, char_vocab_table, pos_vocab_table,
+                 rels_vocab_table, heads_vocab_table, word_embedding, char_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
-        print(f'word_only_vocab_table: {len(word_only_vocab_table)}')
+        print(f'char_vocab_table: {len(char_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
-        print(f'word_only_embedding: {word_only_embedding.shape}')
+        print(f'char_embedding: {char_embedding.shape}')
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.word_vocab_table = word_vocab_table
-        self.word_only_vocab_table = word_only_vocab_table
+        self.char_vocab_table = char_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
-        self.word_only_embedding = word_only_embedding
+        self.char_embedding = char_embedding
         self.pos_embedding = pos_embedding
 
         self.hparams = hparams
@@ -92,8 +92,8 @@ class Model(object):
             tf.int32, shape=[None, None, None], name='word_ids')
 
         # 한국
-        self.word_only_ids = tf.placeholder(
-            tf.int32, shape=[None, None, None], name='word_only_ids')
+        self.char_ids = tf.placeholder(
+            tf.int32, shape=[None, None, None], name='char_ids')
 
         # NNP
         self.pos_ids = tf.placeholder(
@@ -132,24 +132,24 @@ class Model(object):
                     keep_prob = 1.0 - self.embed_dropout
                     word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
-            with tf.variable_scope('word_only'):
-                trainable = False if self.hparams.word_only_embed_file else True
-                _word_only_embedding = tf.Variable(
-                    self.word_only_embedding, trainable=trainable,
-                    name="_word_only_embedding", dtype=tf.float32)
-                word_only_embedding = tf.nn.embedding_lookup(
-                    _word_only_embedding, self.word_only_ids, name="word_only_embedding")
-                shape = tf.shape(word_only_embedding)
-                word_only_embedding = tf.reshape(
-                    word_only_embedding, [-1, shape[2], self.hparams.word_only_embed_size])
-                word_only_embedding = bilstm_layer(word_only_embedding, sequence_length, int(
-                    self.hparams.word_only_embed_size / 2))
-                word_only_embedding = tf.reshape(
-                    word_only_embedding, [-1, shape[1], self.hparams.word_only_embed_size])
+            with tf.variable_scope('char'):
+                trainable = False if self.hparams.char_embed_file else True
+                _char_embedding = tf.Variable(
+                    self.char_embedding, trainable=trainable,
+                    name="_char_embedding", dtype=tf.float32)
+                char_embedding = tf.nn.embedding_lookup(
+                    _char_embedding, self.char_ids, name="char_embedding")
+                shape = tf.shape(char_embedding)
+                char_embedding = tf.reshape(
+                    char_embedding, [-1, shape[2], self.hparams.char_embed_size])
+                char_embedding = bilstm_layer(char_embedding, sequence_length, int(
+                    self.hparams.char_embed_size / 2))
+                char_embedding = tf.reshape(
+                    char_embedding, [-1, shape[1], self.hparams.char_embed_size])
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
-                    word_only_embedding = tf.nn.dropout(
-                        word_only_embedding, keep_prob)
+                    char_embedding = tf.nn.dropout(
+                        char_embedding, keep_prob)
 
             with tf.variable_scope('pos'):
                 trainable = False if self.hparams.pos_embed_file else True
@@ -171,7 +171,7 @@ class Model(object):
 
             # concat
             self.embeddings = tf.concat(
-                [word_embedding, word_only_embedding, pos_embedding], axis=-1)
+                [word_embedding, char_embedding, pos_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
@@ -310,7 +310,7 @@ class Model(object):
             value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
-    def _run_session(self, sentences_indexed, sentences_only_indexed, pos_indexed,
+    def _run_session(self, sentences_indexed, chars_indexed, pos_indexed,
                      heads_indexed=None, rels_indexed=None):
         self.embed_dropout = self.hparams.embed_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
@@ -321,7 +321,7 @@ class Model(object):
 
         max_seq_len = utils.get_max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_seq_len, :]
-        sentences_only_indexed = sentences_only_indexed[:, :max_seq_len]
+        chars_indexed = chars_indexed[:, :max_seq_len]
         pos_indexed = pos_indexed[:, :max_seq_len, :]
 
         if heads_indexed is not None:
@@ -337,7 +337,7 @@ class Model(object):
 
         feed_dict = {
             self.word_ids: sentences_indexed,
-            self.word_only_ids: sentences_only_indexed,
+            self.char_ids: chars_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
             self.word_length: word_length,
@@ -364,22 +364,22 @@ class Model(object):
 
     def train_step(self, data):
         self.mode = self.train_mode
-        (sentences_indexed, sentences_only_indexed,
+        (sentences_indexed, chars_indexed,
          pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed,
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def eval_step(self, data):
         self.mode = self.eval_mode
-        (sentences_indexed, sentences_only_indexed,
+        (sentences_indexed, chars_indexed,
          pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed,
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def inference_step(self, data):
         self.mode = self.infer_mode
-        (sentences_indexed, sentences_only_indexed, pos_indexed) = data
-        return self._run_session(sentences_indexed, sentences_only_indexed, pos_indexed)
+        (sentences_indexed, chars_indexed, pos_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed)
 
     def save(self, save_path):
         self.saver.save(self.sess, save_path)
