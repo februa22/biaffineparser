@@ -233,7 +233,6 @@ class Model(object):
             seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
-            # pdb.set_trace()
             self.label_logits = tf.gather_nd(
                 full_label_logits, indices=indices)
 

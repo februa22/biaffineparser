@@ -163,7 +163,6 @@ def load_dataset(filepath, flags):
     print('dumping rels_features_dict')
     json.dump(rels_features_dict, open(
         'embeddings/rels_features_dict.json', 'w'), indent=4)
-    pdb.set_trace()
     return sentences_indexed, chars_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, chars_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, chars_embedding_matrix, pos_embedding_matrix, maxlen
 
 
@@ -313,8 +312,6 @@ def get_dataset_multiindex(filepath):
     maxcharlen = 0
     for i in dataset.index.unique():
         temp_sent = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['eoj'])
-        #temp_sent_only = ['ROOT_START'] + \
-        #    cast_safe_list(dataset.loc[i]['eoj_only'])
         temp_chars = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['char'])
         temp_pos = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['pos'])
         temp_rels = ['ROOT_START'] + cast_safe_list(dataset.loc[i]['label'])
@@ -323,10 +320,8 @@ def get_dataset_multiindex(filepath):
         pos.append(temp_pos)
         rels.append(temp_rels)
         heads.append(temp_heads)
-        #sentences_only.append(temp_sent_only)
         chars.append(temp_chars)
         tempsentlen = len(temp_sent)
-        # get longest size of the word (어절)
         tempwordlen = max([len(word.strip().split('|')) for word in temp_sent])
         tempcharlen = max([len(word.strip().split('|')) for word in temp_chars])
         if tempsentlen > maxlen:
