@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import csv
+import json
+import os
+import pdb
 import sys
 
 import numpy as np
@@ -9,12 +13,6 @@ from torch.autograd import Variable
 from torch.nn.init import orthogonal_
 
 import _pickle as pickle
-import json
-import csv
-
-#for debugging
-import pdb
-import os
 
 GLOBAL_PAD_SYMBOL = '<PAD>'
 GLOBAL_UNK_SYMBOL = '<UNK>'
@@ -74,9 +72,9 @@ class VocabSelector:
     def transform(self, X):
         return np.asarray([self.__look_up(x) for x in X], dtype=np.int32)
 
+
 def load_dataset(filepath, flags):
-    
-    #check dataset_multiindex and save or load
+    # check dataset_multiindex and save or load
     dataset_multiindex_filepath = 'embeddings/dataset_multiindex.pkl'
     if os.path.isfile(dataset_multiindex_filepath):
         print('dataset_multiindex_file exists, loading dataset_multiindex_file...')
@@ -110,7 +108,7 @@ def load_dataset(filepath, flags):
     # making word_dictionary
     sentences_indexed = get_indexed_sequences(sentences, words_dict, maxl=maxlen, maxwordl=maxwordlen, split_word=True)
 
-    #saving words and pos embeddings matrix
+    # saving words and pos embeddings matrix
     if flags.word_embed_matrix_file:
         print(f'saving words_embeddings_matrix: {flags.word_embed_matrix_file}')
         np.savetxt(flags.word_embed_matrix_file, words_embeddings_matrix)
@@ -133,26 +131,25 @@ def load_dataset(filepath, flags):
         json.dump(rels_features_dict, f, indent=4)
     return sentences_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, pos_embedding_matrix, maxlen
 
-#loading embed model
+
 def load_embed_model(embed_file_path, words_dict, embedding_size):
     print("Loading Pre-trained Embedding Model and merging with current dict")
     glove_dict = {}
-    with open(embed_file_path, 'r', encoding='utf-8') as f:
-        for index, line in enumerate(f):
-            if line.strip():
-                word_and_embedding = line.strip().split('\t', 1)
-                word = word_and_embedding[0]
-                embedding = np.array([a for a in word_and_embedding[1].split(',')])
-                glove_dict[word] = embedding
-                # add glove word in word_dict
-                if word not in words_dict:
-                    words_dict[word] = len(words_dict)
-        #get embedding_size: ex) 200
-        #embedding_size = len(embedding)
+    if embed_file_path:
+        with open(embed_file_path, 'r', encoding='utf-8') as f:
+            for index, line in enumerate(f):
+                if line.strip():
+                    word_and_embedding = line.strip().split('\t', 1)
+                    word = word_and_embedding[0]
+                    embedding = np.array([a for a in word_and_embedding[1].split(',')])
+                    glove_dict[word] = embedding
+                    # add glove word in word_dict
+                    if word not in words_dict:
+                        words_dict[word] = len(words_dict)
     
-    #create empty embedding matrix with zeros
-    #create random embedding matrix for initialization
-    np.random.seed(0) # for reproducibility
+    # create empty embedding matrix with zeros
+    # create random embedding matrix for initialization
+    np.random.seed(0)  # for reproducibility
     embedding_matrix = np.random.rand(len(words_dict), embedding_size)
     #embedding_matrix = np.zeros((len(words_dict), embedding_size))
     for key, value in words_dict.items():
@@ -162,18 +159,16 @@ def load_embed_model(embed_file_path, words_dict, embedding_size):
         # add word_vector to matrix
         if word_vector is not None:
             embedding_matrix[word_index] = word_vector
-    #unk_index = words_dict['<UNK>']
-    #embedding_matrix[unk_index] = np.random.rand(embedding_size)
     # replace padding in embedding matrix into np.zeros
     pad_index = words_dict['<PAD>']
     embedding_matrix[pad_index] = np.zeros(embedding_size)
     return embedding_matrix, words_dict
 
+
 def save_vocab(vocab, filepath):
     print_out(f'Save vocab... {filepath}')
-    #with open(filepath, 'wb') as f:
-    #    pickle.dump(vocab, f)
     pickle.dump(vocab, open(filepath, 'wb'))
+
 
 def load_vocab(filepath):
     print_out(f'Load vocab... {filepath}')
@@ -191,12 +186,12 @@ def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=Fals
     :param maxwordl: max length of splitted words
     :return:
     """
-    #어절 내에서도 split할 경우
+    # 어절 내에서도 split할 경우
     if split_word:
         indexed_sequences = np.full((len(sequences), maxl, maxwordl), vocab.get('<PAD>', GLOBAL_PAD_SYMBOL), dtype=np.int32)
         for i, sequence in enumerate(sequences):
             for j, s in enumerate(sequence):
-                #print(sequence)
+                # print(sequence)
                 for k, v in enumerate(str(s).strip().split('|')):
                     if k >= maxwordl:
                         break
@@ -231,7 +226,7 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
     i = starti
     for sentence in features:
         for f in sentence:
-            #어절을 잘라야할 경우
+            # 어절을 잘라야할 경우
             if split_word:
                 for word in str(f).strip().split('|'):
                     if features_dict.get(word, None) is None:
@@ -260,9 +255,9 @@ def cast_safe_list(elem):
 def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
     dataset = pd.read_csv(filepath, sep='\t', quoting=csv.QUOTE_NONE)
-    #Process to make eoj string
+    # Process to make eoj string
     dataset['eoj'] = dataset['eoj'].apply(lambda x: str(x))
-    #Process to make head_id float
+    # Process to make head_id float
     dataset['head_id'] = dataset['head_id'].apply(lambda x: int(x))
     dataset = dataset.set_index(['sent_id'])
     sentences = []
@@ -289,7 +284,7 @@ def get_dataset_multiindex(filepath):
             maxwordlen = tempwordlen
         if i % 5000 == 0:
             print("reading index=", i)
-    #maxwordlen added for getting word length(어절 내의 최대 단어 수)
+    # maxwordlen added for getting word length(어절 내의 최대 단어 수)
     return sentences, pos, rels, heads, maxlen, maxwordlen
 
 
@@ -297,13 +292,12 @@ def replace_and_save_dataset(input_file, heads, rels, output_file):
     print_out(f'Replace dataset... {input_file}')
     # dataset = pd.read_csv(input_file)
     dataset = pd.read_csv(input_file, sep='\t', quoting=csv.QUOTE_NONE)
-    dataset = dataset.set_index(['sent_id'])
-    for i in dataset.index.unique():
-        dataset.loc[i, 'label'] = rels[i]
-        dataset.loc[i, 'head_id'] = heads[i]
+    # dataset = dataset.set_index(['sent_id'])
+    dataset = dataset.assign(head_id_infer=pd.Series(heads).values)
+    dataset = dataset.assign(label_infer=pd.Series(rels).values)
     
     print_out(f'Save dataset... {output_file}')
-    dataset.to_csv(output_file, encoding='utf-8')
+    dataset.to_csv(output_file, sep='\t', index=False, encoding='utf-8')
 
 
 def to_one_hot(y, n_dims=None):
@@ -324,8 +318,8 @@ def init_lstm_weights(lstm, initializer=orthogonal_):
 
 
 def get_sequence_length(data, pad_id, axis=1):
-    sequence_length = np.sum(np.not_equal(data[:,:,0], pad_id), axis=axis)
-    #print(f"sequence_length={sequence_length}")
+    sequence_length = np.sum(np.not_equal(data[:, :, 0], pad_id), axis=axis)
+    # print(f"sequence_length={sequence_length}")
     return sequence_length
 
 
