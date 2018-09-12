@@ -2,9 +2,9 @@
 
 #### Set your hyper-parameters here ####
 ############## START ###################
-train_filename=data/sejong.nan.fixed.train.csv # Path of train dataset.
-dev_filename=data/sejong.nan.fixed.test.csv # Path of dev dataset.
-out_dir=parser/model_18_2 # Store log/model files.
+train_filename=data/sejong.char.train.csv # Path of train dataset.
+dev_filename=data/sejong.char.test.csv # Path of dev dataset.
+out_dir=parser/model_test # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=50 # Num epochs to train.

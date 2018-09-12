@@ -18,9 +18,16 @@ def add_arguments(parser):
                         help='mode to write or append (w | a)')
     parser.add_argument('--eoj_index', type=int, default=4,
                         help='index of eoj column in raw csv file')
+    parser.add_argument('--split_base', type=str, default='char',
+                        help='split eoj based on char or morph (char | morph)')
 
 
 def main(flags):
+    #check for split_base
+    if flags.split_base not in ['char', 'morph']:
+        print(f'invalied argument option for split_base: split_base={split_base}')
+        exit()
+
     input_file_path = flags.input_file
     output_file_path = flags.output_file
     sent_id = 0
@@ -52,8 +59,14 @@ def main(flags):
                 if int(eoj_id) == 1:
                     sent_id += 1
                 eoj = row[flags.eoj_index]
-                char = '|'.join(['|'.join(morph[:morph.rfind('/')])
+
+                #split eoj by char or morph
+                if flags.split_base == 'char':
+                    char = '|'.join(['|'.join(morph[:morph.rfind('/')])
                                  for morph in str(eoj).strip().split(flags.delimiter)])
+                elif flags.split_base == 'morph':
+                     char = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split(flags.delimiter)])
+                
                 head_id = row[1]
                 label = row[2]
                 pos = '|'.join([morph[morph.rfind('/')+1:]
@@ -61,13 +74,13 @@ def main(flags):
                 output_file.write('\t'.join(
                     [str(s) for s in [sent_id, eoj_id, eoj, pos, head_id, label, char]]) + "\n")
                 if index % 10000 == 0:
-                    print(f'writing line index={index}')
+                    print(f'reading and writing: line index={index}')
         print('reading and writing END')
         return
 
 
 if __name__ == '__main__':
-
+    
     print('build data START')
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)

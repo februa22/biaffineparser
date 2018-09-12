@@ -93,12 +93,17 @@ def load_dataset(filepath, flags):
             f'Saving dataset_multiindex_file... : {dataset_multiindex_filepath}')
         save_vocab((sentences, chars, pos, rels, heads,
                 maxlen, maxwordlen, maxcharlen), dataset_multiindex_filepath)
+    
+    #사전을 늘리기 위해 평가데이터도 읽어들이기
+    print('also reading validation dataset for creating dictionary')
+    (val_sentences, val_chars, val_pos, _, _, _, _, _) = get_dataset_multiindex(flags.dev_filename)
 
     _, heads_features_dict, _ = initialize_embed_features(
         heads, 100, maxlen, starti=0, return_embeddings=False)
-
+    
+    #사전을 늘리기 위해 평가데이터도 추가
     _, pos_features_dict, pos_embedding_matrix = initialize_embed_features(
-        pos, flags.pos_embed_size, maxlen, split_word=True)
+        pos + val_pos, flags.pos_embed_size, maxlen, split_word=True)
 
     rels_indexed, rels_features_dict, _ = initialize_embed_features(
         rels, 100, maxlen, starti=0)
@@ -106,12 +111,13 @@ def load_dataset(filepath, flags):
     heads_padded = get_indexed_sequences(
         heads, vocab=heads_features_dict, maxl=maxlen, just_pad=True)
 
+    #사전을 늘리기 위해 평가데이터도 추가
     _, words_dict, words_embeddings_matrix = initialize_embed_features(
-        sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
+        sentences + val_sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
 
-    # dic for char
+    #사전을 늘리기 위해 평가데이터도 추가
     _, chars_dict, chars_embedding_matrix = initialize_embed_features(
-        chars, flags.char_embed_size, maxlen, split_word=True, starti=0)
+        chars + val_chars, flags.char_embed_size, maxlen, split_word=True, starti=0)
 
     # get word_embeddings from pretrained glove file and add glove vocabs to word_dict
     if flags.word_embed_file:
@@ -163,6 +169,7 @@ def load_dataset(filepath, flags):
     print('dumping rels_features_dict')
     json.dump(rels_features_dict, open(
         'embeddings/rels_features_dict.json', 'w'), indent=4)
+    pdb.set_trace()
     return sentences_indexed, chars_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, chars_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, chars_embedding_matrix, pos_embedding_matrix, maxlen
 
 
@@ -286,12 +293,19 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
         embedding_matrix = None
     return indexed, features_dict, embedding_matrix
 
+def normalize_word(word):
+    if '/SL' in word:
+        word = '<SL>/SL'
+    elif '/SH' in word:
+        word = '<SH>/SH'
+    elif '/SN' in word:
+        word = '<SN>/SN'
+    return word
 
 def cast_safe_list(elem):
     if type(elem) != pd.Series:
         elem = pd.Series(elem)
     return list(elem)
-
 
 def get_dataset_multiindex(filepath):
     print_out(f'Load dataset... {filepath}')
