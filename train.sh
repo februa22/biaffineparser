@@ -4,7 +4,7 @@
 ############## START ###################
 train_filename=data/sejong.char.train.csv # Path of train dataset.
 dev_filename=data/sejong.char.test.csv # Path of dev dataset.
-out_dir=parser/model_test # Store log/model files.
+out_dir=parser/model_iss71 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=50 # Num epochs to train.
@@ -18,13 +18,12 @@ word_embed_matrix_file=embeddings/word_embed_matrix.txt
 char_embed_matrix_file=embeddings/char_embed_matrix.txt #new
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
-
 num_lstm_layers=3
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
 
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=1
 echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
 echo "train"

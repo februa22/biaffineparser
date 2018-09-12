@@ -195,6 +195,8 @@ class Model(object):
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output, self.mlp_dropout)
+            self.h_label_head2 = mlp_with_scope(
+                self.output, 2*self.hparams.num_lstm_units, self.hparams.arc_mlp_units, self.mlp_dropout, 'label_head2')
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim])
             self.h_arc_head = tf.reshape(
@@ -205,6 +207,8 @@ class Model(object):
                 self.h_label_head, [batch_size, -1, self.hparams.label_mlp_units])
             self.h_label_dep = tf.reshape(
                 self.h_label_dep, [batch_size, -1, self.hparams.label_mlp_units])
+            self.h_label_head2 = tf.reshape(
+                self.h_label_head2, [batch_size, -1, self.hparams.arc_mlp_units])
 
     def create_biaffine_layer(self):
         """ adding arc and label logits """
@@ -212,8 +216,18 @@ class Model(object):
         with tf.variable_scope('arc'):
             W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
                                     dtype=tf.float32, initializer=tf.orthogonal_initializer)
-            self.arc_logits = add_biaffine_layer(
+            arc_logits = add_biaffine_layer(
                 self.h_arc_dep, W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+
+            W_arc2 = tf.get_variable('w_arc2', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
+                                    dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            arc_logits2 = add_biaffine_layer(
+                self.h_label_head2, W_arc2, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+
+            self.arc_logits = tf.add(
+                tf.divide(arc_logits, 2),
+                tf.divide(arc_logits2, 2),
+                name='arc_logits')
 
         with tf.variable_scope('label'):
             W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
@@ -242,7 +256,7 @@ class Model(object):
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
             self.label_logits = tf.gather_nd(
-                full_label_logits, indices=indices)
+                full_label_logits, indices=indices, name='label_logits')
 
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
@@ -437,6 +451,7 @@ def multilayer_perceptron(x, weights, biases, dropout):
         keep_prob = 1.0 - dropout
         out_layer = tf.nn.dropout(out_layer, keep_prob)
     return out_layer
+
 
 def mlp_with_scope(x, n_input, n_output, dropout, scope):
     with tf.variable_scope(scope):
