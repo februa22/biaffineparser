@@ -3,9 +3,9 @@
 #### Set your arguments here ####
 ############## START ###################
 train_input_file=raw/sejong.ppos2.train.utf8.error.fixed.txt
-train_output_file=data/sejong.train.compare.csv
+train_output_file=data/sejong.nan.fixed.train.csv
 dev_input_file=raw/sejong.ppos2.test.utf8.error.fixed.txt
-dev_output_file=data/sejong.test.compare.csv
+dev_output_file=data/sejong.nan.fixed.test.csv
 ############## END #####################
 
 echo "building dev_data"
