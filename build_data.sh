@@ -3,20 +3,16 @@
 #### Set your arguments here ####
 ############## START ###################
 train_input_file=raw/sejong.ppos2.train.utf8.error.fixed.txt
-train_output_file=data/sejong.train.csv
+train_output_file=data/sejong.train.compare.csv
 dev_input_file=raw/sejong.ppos2.test.utf8.error.fixed.txt
-dev_output_file=data/sejong.test.csv
+dev_output_file=data/sejong.test.compare.csv
 ############## END #####################
-
-#exit 0
 
 echo "building dev_data"
 python -m parser.build_data \
     --input_file=${dev_input_file} \
     --output_file=${dev_output_file}
 echo "building dev_data DONE"    
-
-#exit 0
 
 echo "building train_data"
 python -m parser.build_data \
