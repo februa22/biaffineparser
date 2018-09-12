@@ -435,10 +435,8 @@ def multilayer_perceptron(x, weights, biases, dropout):
     out_layer = tf.add(tf.matmul(layer_1, weights['w2']), biases['b2'])
     if dropout > 0.0:
         keep_prob = 1.0 - dropout
-        #layer_1 = tf.nn.dropout(layer_1, keep_prob)
         out_layer = tf.nn.dropout(out_layer, keep_prob)
-    return layer_1
-
+    return out_layer
 
 def mlp_with_scope(x, n_input, n_output, dropout, scope):
     with tf.variable_scope(scope):
