@@ -13,7 +13,6 @@ def add_arguments(parser):
     parser.add_argument('--output_file', type=str,
                         help='Path of output file for training, validating, testing')
 
-
 def main(flags):
     input_file = flags.input_file
     output_file = flags.output_file
@@ -57,6 +56,17 @@ def main(flags):
     print('writing output_file END')
     return
 
+'''
+def normarlize(eoj):
+    words = str(eoj).strip().split('|') # 남/NNP|과/JS
+    output = []
+    for word in words:
+        morph = word[:word.rfind('/')]
+        tag = word[word.rfind('/')+1:]
+        if tag in ['SN', 'SL', 'SH']:
+            morph = 
+    return
+'''
 
 if __name__ == '__main__':
 

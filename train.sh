@@ -4,7 +4,7 @@
 ############## START ###################
 train_filename=data/sejong.char.train.csv # Path of train dataset.
 dev_filename=data/sejong.char.test.csv # Path of dev dataset.
-out_dir=parser/model_18 # Store log/model files.
+out_dir=parser/model_18_1 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
 num_train_epochs=100 # Num epochs to train.
@@ -19,7 +19,7 @@ char_embed_matrix_file=embeddings/char_embed_matrix.txt #new
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
 
-num_lstm_layers=3
+num_lstm_layers=4
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}
