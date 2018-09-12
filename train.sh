@@ -2,15 +2,15 @@
 
 #### Set your hyper-parameters here ####
 ############## START ###################
-train_filename=data/sejong.char.train.csv # Path of train dataset.
-dev_filename=data/sejong.char.test.csv # Path of dev dataset.
-out_dir=parser/model_18_1 # Store log/model files.
+train_filename=data/sejong.nan.fixed.train.csv # Path of train dataset.
+dev_filename=data/sejong.nan.fixed.test.csv # Path of dev dataset.
+out_dir=parser/model_18_2 # Store log/model files.
 device=gpu # device to use
 debug=false # use debug mode
-num_train_epochs=100 # Num epochs to train.
+num_train_epochs=50 # Num epochs to train.
 batch_size=128  # Batch size.
 word_embed_size=200  # The embedding dimension for the word's embedding.
-char_embed_size=200 #new
+char_embed_size=50 #new
 word_embed_file=embeddings/words.pos.original.vec  # Use the pre-trained embedding. If not provided, use random values.
 char_embed_file= #new
 pos_embed_file= #embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
@@ -19,7 +19,7 @@ char_embed_matrix_file=embeddings/char_embed_matrix.txt #new
 pos_embed_matrix_file=embeddings/pos_embed_matrix.txt
 embed_dropout=0.33
 
-num_lstm_layers=4
+num_lstm_layers=3
 ############## END #####################
 
 [ -d foo ] || mkdir ${out_dir}

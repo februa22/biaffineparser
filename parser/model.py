@@ -140,12 +140,20 @@ class Model(object):
                 char_embedding = tf.nn.embedding_lookup(
                     _char_embedding, self.char_ids, name="char_embedding")
                 shape = tf.shape(char_embedding)
+                '''BEFORE
                 char_embedding = tf.reshape(
                     char_embedding, [-1, shape[2], self.hparams.char_embed_size])
                 char_embedding = bilstm_layer(char_embedding, sequence_length, int(
                     self.hparams.char_embed_size / 2))
                 char_embedding = tf.reshape(
                     char_embedding, [-1, shape[1], self.hparams.char_embed_size])
+                '''
+                #AFTER
+                char_embedding = tf.reshape(
+                    char_embedding, [-1, shape[2], self.hparams.char_embed_size])
+                char_embedding = bilstm_layer(char_embedding, sequence_length, 100) #100
+                char_embedding = tf.reshape(
+                    char_embedding, [-1, shape[1], 200]) #200
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
                     char_embedding = tf.nn.dropout(
