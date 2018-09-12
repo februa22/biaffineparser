@@ -4,9 +4,9 @@
 ############## START ###################
 train_filename=data/sejong.train.csv # Path of train dataset.
 dev_filename=data/sejong.test.csv # Path of dev dataset.
-out_dir=parser/model_iss # Store log/model files.
+out_dir=parser/model_iss67 # Store log/model files.
 word_embed_file=embeddings/words.pos.original.vec  # Use the pre-trained embedding. If not provided, use random values.
-pos_embed_file=embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
+pos_embed_file= #embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
 word_embed_size=200  # The embedding dimension for the word's embedding.
 pos_embed_size=100  # The embedding dimension for the tag's embedding.
 embed_dropout=0.33
