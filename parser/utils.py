@@ -169,7 +169,6 @@ def load_dataset(filepath, flags):
     print('dumping rels_features_dict')
     json.dump(rels_features_dict, open(
         'embeddings/rels_features_dict.json', 'w'), indent=4)
-    pdb.set_trace()
     return sentences_indexed, chars_indexed, pos_indexed, heads_padded, rels_indexed, words_dict, chars_dict, pos_features_dict, heads_features_dict, rels_features_dict, words_embeddings_matrix, chars_embedding_matrix, pos_embedding_matrix, maxlen
 
 
