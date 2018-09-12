@@ -18,17 +18,38 @@ def add_arguments(parser):
                         help='mode to write or append (w | a)')
     parser.add_argument('--eoj_index', type=int, default=4,
                         help='index of eoj column in raw csv file')
+    parser.add_argument('--split_base', type=str, default='char',
+                        help='split eoj based on char or morph (char | morph)')
 
 
 def main(flags):
+    #check for split_base
+    if flags.split_base not in ['char', 'morph']:
+        print(f'invalied argument option for split_base: split_base={split_base}')
+        exit()
+
     input_file_path = flags.input_file
     output_file_path = flags.output_file
-    print(
-        f'reading and writing START: input_file={input_file_path}, output={output_file_path}')
+    sent_id = 0
+
+    #if appending, get last sentnece_id
+    if flags.mode == 'a':
+        with open(output_file_path, 'r', encoding='utf-8') as output_file:
+            for index, line in enumerate(output_file):
+                if not line.strip() or line.strip().startswith(';'):
+                    continue
+                line = line.strip()
+                sent_id = line.split('\t')[0]
+            print(f'appending mode: start sent_id={sent_id}')
+            print(f'appending mode: last_line={line}')
+            sent_id = int(sent_id)
+
+    #reading and writing start
+    print(f'reading and writing START: input_file={input_file_path}, output={output_file_path}')
     with open(input_file_path, 'r', encoding='utf-8') as input_file:
         with open(output_file_path, flags.mode, encoding='utf-8') as output_file:
-            output_file.write('sent_id\teoj_id\teoj\tpos\thead_id\tlabel\tchar\n')
-            sent_id = 0
+            if flags.mode == 'w':
+                output_file.write('sent_id\teoj_id\teoj\tpos\thead_id\tlabel\tchar\n')
             for index, line in enumerate(input_file):
                 line = line.strip()
                 if not line or line.startswith(';'):
@@ -38,8 +59,14 @@ def main(flags):
                 if int(eoj_id) == 1:
                     sent_id += 1
                 eoj = row[flags.eoj_index]
-                char = '|'.join(['|'.join(morph[:morph.rfind('/')])
+
+                #split eoj by char or morph
+                if flags.split_base == 'char':
+                    char = '|'.join(['|'.join(morph[:morph.rfind('/')])
                                  for morph in str(eoj).strip().split(flags.delimiter)])
+                elif flags.split_base == 'morph':
+                     char = '|'.join([morph[:morph.rfind('/')] for morph in str(eoj).strip().split(flags.delimiter)])
+                
                 head_id = row[1]
                 label = row[2]
                 pos = '|'.join([morph[morph.rfind('/')+1:]
@@ -47,13 +74,13 @@ def main(flags):
                 output_file.write('\t'.join(
                     [str(s) for s in [sent_id, eoj_id, eoj, pos, head_id, label, char]]) + "\n")
                 if index % 10000 == 0:
-                    print(f'writing line index={index}')
+                    print(f'reading and writing: line index={index}')
         print('reading and writing END')
         return
 
 
 if __name__ == '__main__':
-
+    
     print('build data START')
     argparser = argparse.ArgumentParser()
     add_arguments(argparser)
