@@ -31,6 +31,9 @@ def add_arguments(parser):
                         help='Number of hidden units for MLP of label')
     parser.add_argument('--word_embed_size', type=int, default=100,
                         help="The embedding dimension for the word's embedding.")
+    #new
+    parser.add_argument('--char_embed_size', type=int, default=100,
+                        help="The embedding dimension for the char's embedding.")                    
     parser.add_argument('--pos_embed_size', type=int, default=100,
                         help="The embedding dimension for the POS's embedding.")
 
@@ -53,6 +56,9 @@ def add_arguments(parser):
                         help="Store log/model files.")
     parser.add_argument("--word_vocab_name", type=str, default='word.pkl',
                         help="Vocab name of words.")
+    #new
+    parser.add_argument("--char_vocab_name", type=str, default='char.pkl',
+                        help="Vocab name of chars.")
     parser.add_argument("--pos_vocab_name", type=str, default='pos.pkl',
                         help="Vocab name of pos.")
     parser.add_argument("--rel_vocab_name", type=str, default='rel.pkl',
@@ -62,12 +68,20 @@ def add_arguments(parser):
     parser.add_argument("--word_embed_file", type=str, default=None,
                         help="Use the pre-trained embedding. \
                         If not provided, use random values.")
+    #new
+    parser.add_argument("--char_embed_file", type=str, default=None,
+                        help="Use the pre-trained embedding. \
+                        If not provided, use random values.")
     parser.add_argument("--pos_embed_file", type=str, default=None,
                         help="Use the pre-trained embedding. \
                         If not provided, use random values.")
     parser.add_argument("--word_embed_matrix_file", type=str, default=None,
                         help="word_embed_martix file path (numpy to text). \
                         If not provided, not saving.")
+    #new
+    parser.add_argument("--char_embed_matrix_file", type=str, default=None,
+                        help="char_embed_martix file path (numpy to text). \
+                        If not provided, not saving.")                         
     parser.add_argument("--pos_embed_matrix_file", type=str, default=None,
                         help="pos_embed_martix file path (numpy to text). \
                         If not provided, not saving.")
@@ -106,17 +120,17 @@ def str2bool(v):
 
 
 def evaluate(model, data, batch_size):
-    (val_sentences_indexed, val_pos_indexed,
+    (val_sentences_indexed, val_chars_indexed, val_pos_indexed,
      val_rels_indexed, val_heads_padded) = data
     total_eval_loss, total_eval_uas, total_eval_las = [], [], []
     total_head_preds, total_rel_preds = [], []
     lengths = []
     # iterate over the dev-set
-    for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-            val_sentences_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded,
+    for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
+            val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded,
             batch_size=batch_size):
-        batch_data = (sentences_indexed_batch, pos_indexed_batch,
-                      heads_indexed_batch, rels_indexed_batch)
+        batch_data = (sentences_indexed_batch, chars_indexed_batch,
+                      pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
         result = model.eval_step(batch_data)
 
         (eval_loss, eval_uas, eval_las, head_preds,
@@ -157,20 +171,25 @@ def train(flags, log_f=None):
 
     # loading trainind dataset and embed
     (sentences_indexed,  # (12543, 160)
+        chars_indexed,
         pos_indexed,  # (12543, 160)
         heads_padded,   # (12543, 160)
         rels_indexed,   # (12543, 160)
         words_dict,  # 400005
+        chars_dict,
         pos_features_dict,  # 20
         heads_features_dict,  # 132
         rels_features_dict,  # 53
         word_embedding,  # (400005, 100)
+        chars_embedding,
         pos_embedding,  # (20, 100)
-        maxlen,  # 160
+        maxlen  # 160
      ) = utils.load_dataset(flags.train_filename, flags)
 
     utils.print_out('#'*30, log_f)
     utils.print_out(f'sentences_indexed {sentences_indexed.shape}', log_f)
+    utils.print_out(
+        f'chars_indexed {chars_indexed.shape}', log_f)
     utils.print_out(f'pos_indexed {pos_indexed.shape}', log_f)
     utils.print_out(f'rels_indexed {rels_indexed.shape}', log_f)
     utils.print_out(f'heads_padded {heads_padded.shape}', log_f)
@@ -191,32 +210,43 @@ def train(flags, log_f=None):
             utils.print_out(f'heads {h}', log_f)
 
     # embed vadliation(dev) dataset
-    val_sentences, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
+    val_sentences, val_chars, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen, val_maxcharlen = utils.get_dataset_multiindex(
         flags.dev_filename)
+
     val_sentences_indexed = utils.get_indexed_sequences(
         val_sentences, words_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
+    val_chars_indexed = utils.get_indexed_sequences(
+        val_chars, chars_dict, val_maxlen, maxwordl=val_maxcharlen, split_word=True)
     val_pos_indexed = utils.get_indexed_sequences(
         val_pos, pos_features_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_rels_indexed = utils.get_indexed_sequences(
         val_rels, rels_features_dict, val_maxlen)
     val_heads_padded = utils.get_indexed_sequences(
         val_heads, heads_features_dict, val_maxlen, just_pad=True)
+    #pdb.set_trace()
+    
+    dev_data = (val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
 
-    dev_data = (val_sentences_indexed, val_pos_indexed,
-                val_rels_indexed, val_heads_padded)
 
     best_eval_uas = .0
     stop_count = 0
 
     model = Model(
         flags,
-        words_dict, pos_features_dict,
-        rels_features_dict, heads_features_dict,
-        word_embedding, pos_embedding)
+        words_dict,
+        chars_dict,
+        pos_features_dict,
+        rels_features_dict,
+        heads_features_dict,
+        word_embedding,
+        chars_embedding,
+        pos_embedding)
     model.build()
 
     utils.save_vocab(words_dict, os.path.join(
         flags.out_dir, flags.word_vocab_name))
+    utils.save_vocab(chars_dict, os.path.join(
+        flags.out_dir, flags.char_vocab_name))
     utils.save_vocab(pos_features_dict, os.path.join(
         flags.out_dir, flags.pos_vocab_name))
     utils.save_vocab(rels_features_dict, os.path.join(
@@ -226,20 +256,21 @@ def train(flags, log_f=None):
     # save hparams as json in out_dir
     hparams_json_path = os.path.join(flags.out_dir, 'hparams.json')
     print(f'Save hparams... {hparams_json_path}')
-    json.dump(vars(flags), open(hparams_json_path, 'w', encoding='utf-8'), indent=4, ensure_ascii=False)
+    json.dump(vars(flags), open(hparams_json_path, 'w',
+                                encoding='utf-8'), indent=4, ensure_ascii=False)
 
     # train
     for epoch in range(flags.num_train_epochs):
         epoch += 1
         # reset progbar each epoch
         progbar = Progbar(len(sentences_indexed))
-        sentences_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
-            sentences_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
+        sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
+            sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
 
         # iterate over the train-set
-        for sentences_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-                sentences_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
-            batch_data = (sentences_indexed_batch, pos_indexed_batch,
+        for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
+                sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
+            batch_data = (sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch,
                           heads_indexed_batch, rels_indexed_batch)
             _, loss, uas, las, global_step = model.train_step(batch_data)
 
@@ -300,6 +331,8 @@ def inference(flags, log_f=None):
         flags.out_dir, flags.word_vocab_name))
     pos_features_dict = utils.load_vocab(os.path.join(
         flags.out_dir, flags.pos_vocab_name))
+    char_features_dict = utils.load_vocab(os.path.join(
+        flags.out_dir, flags.char_vocab_name))
     rels_features_dict = utils.load_vocab(os.path.join(
         flags.out_dir, flags.rel_vocab_name))
     heads_features_dict = utils.load_vocab(os.path.join(
@@ -307,12 +340,15 @@ def inference(flags, log_f=None):
 
     word_embedding, _ = utils.load_embed_model(flags.word_embed_file, words_dict, flags.word_embed_size)
     pos_embedding, _ = utils.load_embed_model(flags.pos_embed_file, pos_features_dict, flags.pos_embed_size)
+    char_embedding, _ = utils.load_embed_model(flags.char_embed_file, char_features_dict, flags.char_embed_size)
 
-    val_sentences, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen = utils.get_dataset_multiindex(
+    val_sentences, val_chars, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen, val_maxcharlen = utils.get_dataset_multiindex(
         flags.inference_input_file)
 
     val_sentences_indexed = utils.get_indexed_sequences(
         val_sentences, words_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
+    val_char_indexed = utils.get_indexed_sequences(
+        val_chars, char_features_dict, val_maxlen, maxwordl=val_maxcharlen, split_word=True)
     val_pos_indexed = utils.get_indexed_sequences(
         val_pos, pos_features_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_rels_indexed = utils.get_indexed_sequences(
@@ -320,15 +356,17 @@ def inference(flags, log_f=None):
     val_heads_padded = utils.get_indexed_sequences(
         val_heads, heads_features_dict, val_maxlen, just_pad=True)
 
-    test_data = (val_sentences_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
+    test_data = (val_sentences_indexed, val_char_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
 
     model = Model(
         flags,
         words_dict,
+        char_features_dict,
         pos_features_dict,
         rels_features_dict,
         heads_features_dict,
         word_embedding,
+        char_embedding,
         pos_embedding)
 
     evaluate_and_write_predictions(flags, model, test_data, flags.inference_input_file, flags.inference_output_file)

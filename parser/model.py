@@ -6,29 +6,33 @@ from tensorflow.python import debug as tf_debug
 
 from . import utils
 
-
 class Model(object):
-    def __init__(self, hparams, word_vocab_table, pos_vocab_table,
-                 rels_vocab_table, heads_vocab_table, word_embedding, pos_embedding):
+    def __init__(self, hparams, word_vocab_table, char_vocab_table, pos_vocab_table,
+                 rels_vocab_table, heads_vocab_table, word_embedding, char_embedding, pos_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
+        print(f'char_vocab_table: {len(char_vocab_table)}')
         print(f'pos_vocab_table: {len(pos_vocab_table)}')
         print(f'rels_vocab_table: {len(rels_vocab_table)}')
         print(f'heads_vocab_table: {len(heads_vocab_table)}')
         print(f'word_embedding: {word_embedding.shape}')
+        print(f'char_embedding: {char_embedding.shape}')
         print(f'pos_embedding: {pos_embedding.shape}')
         print('#'*30)
         self.word_vocab_table = word_vocab_table
+        self.char_vocab_table = char_vocab_table
         self.pos_vocab_table = pos_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
+        self.char_embedding = char_embedding
         self.pos_embedding = pos_embedding
 
         self.hparams = hparams
         self.n_classes = len(rels_vocab_table)
 
         self.word_pad_id = word_vocab_table[utils.GLOBAL_PAD_SYMBOL]
+        self.char_pad_id = char_vocab_table[utils.GLOBAL_PAD_SYMBOL]
         self.head_pad_id = tf.constant(
             heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
         self.rel_pad_id = tf.constant(
@@ -84,8 +88,15 @@ class Model(object):
 
     def create_placeholders(self):
         # word_ids, pos_ids shape: (?,?,?) => (batch_size, sequence_words, word_morphs)
+        # 한국/NNP
         self.word_ids = tf.placeholder(
             tf.int32, shape=[None, None, None], name='word_ids')
+
+        # 한국
+        self.char_ids = tf.placeholder(
+            tf.int32, shape=[None, None, None], name='char_ids')
+
+        # NNP
         self.pos_ids = tf.placeholder(
             tf.int32, shape=[None, None, None], name='pos_ids')
 
@@ -97,9 +108,14 @@ class Model(object):
             tf.int32, shape=[None], name='sequence_length')
         self.word_length = tf.placeholder(
             tf.int32, shape=[None, None], name='word_length')
+        self.char_length = tf.placeholder(
+            tf.int32, shape=[None, None], name='char_length')
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
+            # get word length
+            sequence_length = tf.reshape(self.word_length, [-1])
+
             with tf.variable_scope('word'):
                 trainable = False if self.hparams.word_embed_file else True
                 _word_embedding = tf.Variable(
@@ -107,10 +123,7 @@ class Model(object):
                     name="_word_embedding", dtype=tf.float32)
                 word_embedding = tf.nn.embedding_lookup(
                     _word_embedding, self.word_ids, name="word_embedding")
-                word_embedding = tf.reduce_mean(word_embedding, axis=-2)
-                if self.embed_dropout > 0.0:
-                    keep_prob = 1.0 - self.embed_dropout
-                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+
             with tf.variable_scope('pos'):
                 trainable = False if self.hparams.pos_embed_file else True
                 _pos_embedding = tf.Variable(
@@ -118,13 +131,53 @@ class Model(object):
                     name="_pos_embedding", dtype=tf.float32)
                 pos_embedding = tf.nn.embedding_lookup(
                     _pos_embedding, self.pos_ids, name="pos_embedding")
-                pos_embedding = tf.reduce_mean(pos_embedding, axis=-2)
+
+            word_embedding = tf.concat([word_embedding, pos_embedding], axis=-1)
+            shape = tf.shape(self.word_ids)
+            dim = self.hparams.word_embed_size + self.hparams.pos_embed_size
+            word_embedding = tf.reshape(
+                word_embedding, [-1, shape[2], dim])
+            word_embedding = bilstm_layer(
+                word_embedding, sequence_length,
+                int(dim / 2))
+            word_embedding = tf.reshape(
+                word_embedding, [-1, shape[1], dim])
+            if self.embed_dropout > 0.0:
+                keep_prob = 1.0 - self.embed_dropout
+                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+
+            with tf.variable_scope('char'):
+                trainable = False if self.hparams.char_embed_file else True
+                _char_embedding = tf.Variable(
+                    self.char_embedding, trainable=trainable,
+                    name="_char_embedding", dtype=tf.float32)
+                char_embedding = tf.nn.embedding_lookup(
+                    _char_embedding, self.char_ids, name="char_embedding")
+                shape = tf.shape(char_embedding)
+                sequence_length = tf.reshape(self.char_length, [-1])
+                dim = self.hparams.char_embed_size
+                # BEFORE
+                char_embedding = tf.reshape(char_embedding, [-1, shape[2], dim])
+                char_embedding = bilstm_layer(
+                    char_embedding, sequence_length, int(dim / 2))
+                char_embedding = tf.reshape(char_embedding, [-1, shape[1], dim])
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
-                    pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
+                    char_embedding = tf.nn.dropout(char_embedding, keep_prob)
+                # #AFTER
+                # char_embedding = tf.reshape(
+                #     char_embedding, [-1, shape[2], self.hparams.char_embed_size])
+                # char_embedding = bilstm_layer(char_embedding, sequence_length, 100) #100
+                # char_embedding = tf.reshape(
+                #     char_embedding, [-1, shape[1], 200]) #200
+                # if self.embed_dropout > 0.0:
+                #     keep_prob = 1.0 - self.embed_dropout
+                #     char_embedding = tf.nn.dropout(
+                #         char_embedding, keep_prob)
 
+            # concat
             self.embeddings = tf.concat(
-                [word_embedding, pos_embedding], axis=-1)
+                [word_embedding, char_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
@@ -133,6 +186,7 @@ class Model(object):
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
+            self.mlp_out_size = 500
             batch_size = tf.shape(self.word_ids)[0]
             self.output = tf.reshape(
                 self.output, [-1, 2*self.hparams.num_lstm_units])
@@ -140,29 +194,48 @@ class Model(object):
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output, self.mlp_dropout)
+            # self.h_label_head2 = mlp_with_scope(
+            #     self.output, 2*self.hparams.num_lstm_units, self.hparams.arc_mlp_units, self.mlp_dropout, 'label_head2')
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim])
             self.h_arc_head = tf.reshape(
-                self.h_arc_head, [batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_head, [batch_size, -1, self.mlp_out_size])
             self.h_arc_dep = tf.reshape(
-                self.h_arc_dep, [batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_dep, [batch_size, -1, self.mlp_out_size])
             self.h_label_head = tf.reshape(
-                self.h_label_head, [batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_head, [batch_size, -1, self.mlp_out_size])
             self.h_label_dep = tf.reshape(
-                self.h_label_dep, [batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_dep, [batch_size, -1, self.mlp_out_size])
+            # self.h_label_head2 = tf.reshape(
+            #     self.h_label_head2, [batch_size, -1, self.hparams.arc_mlp_units])
 
     def create_biaffine_layer(self):
         """ adding arc and label logits """
         # logit for arc and label
         with tf.variable_scope('arc'):
-            W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
+            W_arc = tf.get_variable('w_arc', [self.mlp_out_size + 1, 1, self.mlp_out_size],
                                     dtype=tf.float32, initializer=tf.orthogonal_initializer)
-            self.arc_logits = add_biaffine_layer(
+            arc_logits = add_biaffine_layer(
                 self.h_arc_dep, W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
 
+            W_arc2 = tf.get_variable('w_arc2', [self.mlp_out_size + 1, 1, self.mlp_out_size],
+                                    dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            arc_logits2 = add_biaffine_layer(
+                self.h_label_head, W_arc2, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+
+            W_arc3 = tf.get_variable('w_arc3', [self.mlp_out_size + 1, 1, self.mlp_out_size],
+                                    dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            arc_logits3 = add_biaffine_layer(
+                self.h_label_dep, W_arc3, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+
+            self.arc_logits = tf.add(
+                tf.divide(arc_logits, 3),
+                tf.divide(arc_logits2, 3) + tf.divide(arc_logits3, 3),
+                name='arc_logits')
+
         with tf.variable_scope('label'):
-            W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
-                                                  self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            W_label = tf.get_variable('w_label', [self.mlp_out_size + 1, self.n_classes,
+                                                  self.mlp_out_size + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
             full_label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)  # [batch,seq_length,heads,label_classes]
 
@@ -186,9 +259,8 @@ class Model(object):
             seq_idx = tf.tile(seq_idx, [batch_size, 1])  # [[0, 1], [0, 1]]
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
-            # pdb.set_trace()
             self.label_logits = tf.gather_nd(
-                full_label_logits, indices=indices)
+                full_label_logits, indices=indices, name='label_logits')
 
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
@@ -263,7 +335,7 @@ class Model(object):
             value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
-    def _run_session(self, sentences_indexed, pos_indexed,
+    def _run_session(self, sentences_indexed, chars_indexed, pos_indexed,
                      heads_indexed=None, rels_indexed=None):
         self.embed_dropout = self.hparams.embed_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
@@ -271,10 +343,12 @@ class Model(object):
 
         sequence_length = utils.get_sequence_length(
             sentences_indexed, self.word_pad_id)
-        max_seq_len = utils.get_max(sequence_length)
 
+        max_seq_len = utils.get_max(sequence_length)
         sentences_indexed = sentences_indexed[:, :max_seq_len, :]
+        chars_indexed = chars_indexed[:, :max_seq_len]
         pos_indexed = pos_indexed[:, :max_seq_len, :]
+
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_seq_len]
         if rels_indexed is not None:
@@ -286,11 +360,17 @@ class Model(object):
         sentences_indexed = sentences_indexed[:, :, :max_word_len]
         pos_indexed = pos_indexed[:, :, :max_word_len]
 
+        char_length = utils.get_word_length(chars_indexed, self.char_pad_id)
+        max_char_len = utils.get_max(char_length)
+        chars_indexed = chars_indexed[:, :, :max_char_len]
+
         feed_dict = {
             self.word_ids: sentences_indexed,
+            self.char_ids: chars_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
             self.word_length: word_length,
+            self.char_length: char_length,
         }
 
         if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
@@ -314,20 +394,22 @@ class Model(object):
 
     def train_step(self, data):
         self.mode = self.train_mode
-        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed,
+        (sentences_indexed, chars_indexed,
+         pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def eval_step(self, data):
         self.mode = self.eval_mode
-        (sentences_indexed, pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed,
+        (sentences_indexed, chars_indexed,
+         pos_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
                                  heads_indexed, rels_indexed)
 
     def inference_step(self, data):
         self.mode = self.infer_mode
-        (sentences_indexed, pos_indexed) = data
-        return self._run_session(sentences_indexed, pos_indexed)
+        (sentences_indexed, chars_indexed, pos_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed)
 
     def save(self, save_path):
         self.saver.save(self.sess, save_path)
@@ -361,11 +443,11 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
-        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32),
+        'w2': tf.get_variable('w2', shape=[n_output, 500], dtype=tf.float32)
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
-        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
+        'b2': tf.get_variable('b2', shape=[500], dtype=tf.float32, initializer=tf.zeros_initializer())
     }
     return weights, biases
 
