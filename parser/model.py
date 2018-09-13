@@ -123,6 +123,18 @@ class Model(object):
                     name="_word_embedding", dtype=tf.float32)
                 word_embedding = tf.nn.embedding_lookup(
                     _word_embedding, self.word_ids, name="word_embedding")
+                shape = tf.shape(word_embedding)
+                dim = self.hparams.word_embed_size
+                word_embedding = tf.reshape(
+                    word_embedding, [-1, shape[2], dim])
+                word_embedding = bilstm_layer(
+                    word_embedding, sequence_length,
+                    int(dim / 2))
+                word_embedding = tf.reshape(
+                    word_embedding, [-1, shape[1], dim])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
             with tf.variable_scope('pos'):
                 trainable = False if self.hparams.pos_embed_file else True
@@ -131,20 +143,18 @@ class Model(object):
                     name="_pos_embedding", dtype=tf.float32)
                 pos_embedding = tf.nn.embedding_lookup(
                     _pos_embedding, self.pos_ids, name="pos_embedding")
-
-            word_embedding = tf.concat([word_embedding, pos_embedding], axis=-1)
-            shape = tf.shape(self.word_ids)
-            dim = self.hparams.word_embed_size + self.hparams.pos_embed_size
-            word_embedding = tf.reshape(
-                word_embedding, [-1, shape[2], dim])
-            word_embedding = bilstm_layer(
-                word_embedding, sequence_length,
-                int(dim / 2))
-            word_embedding = tf.reshape(
-                word_embedding, [-1, shape[1], dim])
-            if self.embed_dropout > 0.0:
-                keep_prob = 1.0 - self.embed_dropout
-                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+                shape = tf.shape(pos_embedding)
+                dim = self.hparams.pos_embed_size
+                pos_embedding = tf.reshape(
+                    pos_embedding, [-1, shape[2], dim])
+                pos_embedding = bilstm_layer(
+                    pos_embedding, sequence_length,
+                    int(dim / 2))
+                pos_embedding = tf.reshape(
+                    pos_embedding, [-1, shape[1], dim])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
 
             with tf.variable_scope('char'):
                 trainable = False if self.hparams.char_embed_file else True
@@ -177,7 +187,7 @@ class Model(object):
 
             # concat
             self.embeddings = tf.concat(
-                [word_embedding, char_embedding], axis=-1)
+                [word_embedding, pos_embedding, char_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
