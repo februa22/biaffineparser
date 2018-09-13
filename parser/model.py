@@ -32,6 +32,7 @@ class Model(object):
         self.n_classes = len(rels_vocab_table)
 
         self.word_pad_id = word_vocab_table[utils.GLOBAL_PAD_SYMBOL]
+        self.char_pad_id = char_vocab_table[utils.GLOBAL_PAD_SYMBOL]
         self.head_pad_id = tf.constant(
             heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
         self.rel_pad_id = tf.constant(
@@ -107,6 +108,8 @@ class Model(object):
             tf.int32, shape=[None], name='sequence_length')
         self.word_length = tf.placeholder(
             tf.int32, shape=[None, None], name='word_length')
+        self.char_length = tf.placeholder(
+            tf.int32, shape=[None, None], name='char_length')
 
     def create_embedding_layer(self):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
@@ -120,17 +123,28 @@ class Model(object):
                     name="_word_embedding", dtype=tf.float32)
                 word_embedding = tf.nn.embedding_lookup(
                     _word_embedding, self.word_ids, name="word_embedding")
-                shape = tf.shape(word_embedding)
-                word_embedding = tf.reshape(
-                    word_embedding, [-1, shape[2], self.hparams.word_embed_size])
-                word_embedding = bilstm_layer(
-                    word_embedding, sequence_length,
-                    int(self.hparams.word_embed_size / 2))
-                word_embedding = tf.reshape(
-                    word_embedding, [-1, shape[1], self.hparams.word_embed_size])
-                if self.embed_dropout > 0.0:
-                    keep_prob = 1.0 - self.embed_dropout
-                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+
+            with tf.variable_scope('pos'):
+                trainable = False if self.hparams.pos_embed_file else True
+                _pos_embedding = tf.Variable(
+                    self.pos_embedding, trainable=trainable,
+                    name="_pos_embedding", dtype=tf.float32)
+                pos_embedding = tf.nn.embedding_lookup(
+                    _pos_embedding, self.pos_ids, name="pos_embedding")
+
+            word_embedding = tf.concat([word_embedding, pos_embedding], axis=-1)
+            shape = tf.shape(self.word_ids)
+            dim = self.hparams.word_embed_size + self.hparams.pos_embed_size
+            word_embedding = tf.reshape(
+                word_embedding, [-1, shape[2], dim])
+            word_embedding = bilstm_layer(
+                word_embedding, sequence_length,
+                int(dim / 2))
+            word_embedding = tf.reshape(
+                word_embedding, [-1, shape[1], dim])
+            if self.embed_dropout > 0.0:
+                keep_prob = 1.0 - self.embed_dropout
+                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
 
             with tf.variable_scope('char'):
                 trainable = False if self.hparams.char_embed_file else True
@@ -140,46 +154,30 @@ class Model(object):
                 char_embedding = tf.nn.embedding_lookup(
                     _char_embedding, self.char_ids, name="char_embedding")
                 shape = tf.shape(char_embedding)
-                '''BEFORE
-                char_embedding = tf.reshape(
-                    char_embedding, [-1, shape[2], self.hparams.char_embed_size])
-                char_embedding = bilstm_layer(char_embedding, sequence_length, int(
-                    self.hparams.char_embed_size / 2))
-                char_embedding = tf.reshape(
-                    char_embedding, [-1, shape[1], self.hparams.char_embed_size])
-                '''
-                #AFTER
-                char_embedding = tf.reshape(
-                    char_embedding, [-1, shape[2], self.hparams.char_embed_size])
-                char_embedding = bilstm_layer(char_embedding, sequence_length, 100) #100
-                char_embedding = tf.reshape(
-                    char_embedding, [-1, shape[1], 200]) #200
+                sequence_length = tf.reshape(self.char_length, [-1])
+                dim = self.hparams.char_embed_size
+                # BEFORE
+                char_embedding = tf.reshape(char_embedding, [-1, shape[2], dim])
+                char_embedding = bilstm_layer(
+                    char_embedding, sequence_length, int(dim / 2))
+                char_embedding = tf.reshape(char_embedding, [-1, shape[1], dim])
                 if self.embed_dropout > 0.0:
                     keep_prob = 1.0 - self.embed_dropout
-                    char_embedding = tf.nn.dropout(
-                        char_embedding, keep_prob)
-
-            with tf.variable_scope('pos'):
-                trainable = False if self.hparams.pos_embed_file else True
-                _pos_embedding = tf.Variable(
-                    self.pos_embedding, trainable=trainable,
-                    name="_pos_embedding", dtype=tf.float32)
-                pos_embedding = tf.nn.embedding_lookup(
-                    _pos_embedding, self.pos_ids, name="pos_embedding")
-                shape = tf.shape(pos_embedding)
-                pos_embedding = tf.reshape(
-                    pos_embedding, [-1, shape[2], self.hparams.pos_embed_size])
-                pos_embedding = bilstm_layer(
-                    pos_embedding, sequence_length, int(self.hparams.pos_embed_size / 2))
-                pos_embedding = tf.reshape(
-                    pos_embedding, [-1, shape[1], self.hparams.pos_embed_size])
-                if self.embed_dropout > 0.0:
-                    keep_prob = 1.0 - self.embed_dropout
-                    pos_embedding = tf.nn.dropout(pos_embedding, keep_prob)
+                    char_embedding = tf.nn.dropout(char_embedding, keep_prob)
+                # #AFTER
+                # char_embedding = tf.reshape(
+                #     char_embedding, [-1, shape[2], self.hparams.char_embed_size])
+                # char_embedding = bilstm_layer(char_embedding, sequence_length, 100) #100
+                # char_embedding = tf.reshape(
+                #     char_embedding, [-1, shape[1], 200]) #200
+                # if self.embed_dropout > 0.0:
+                #     keep_prob = 1.0 - self.embed_dropout
+                #     char_embedding = tf.nn.dropout(
+                #         char_embedding, keep_prob)
 
             # concat
             self.embeddings = tf.concat(
-                [word_embedding, char_embedding, pos_embedding], axis=-1)
+                [word_embedding, char_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
@@ -188,6 +186,7 @@ class Model(object):
 
     def create_mlp_layer(self):
         with tf.variable_scope('mlp'):
+            self.mlp_out_size = 500
             batch_size = tf.shape(self.word_ids)[0]
             self.output = tf.reshape(
                 self.output, [-1, 2*self.hparams.num_lstm_units])
@@ -195,29 +194,43 @@ class Model(object):
             #   h_arc_head: [batch_size * seq_len, dim]
             self.h_arc_head, self.h_arc_dep, self.h_label_head, self.h_label_dep = mlp_for_arc_and_label(
                 self.hparams, self.output, self.mlp_dropout)
+            # self.h_label_head2 = mlp_with_scope(
+            #     self.output, 2*self.hparams.num_lstm_units, self.hparams.arc_mlp_units, self.mlp_dropout, 'label_head2')
             # Reshape
             #   h_arc_head: [batch_size, seq_len, dim])
             self.h_arc_head = tf.reshape(
-                self.h_arc_head, [batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_head, [batch_size, -1, self.mlp_out_size])
             self.h_arc_dep = tf.reshape(
-                self.h_arc_dep, [batch_size, -1, self.hparams.arc_mlp_units])
+                self.h_arc_dep, [batch_size, -1, self.mlp_out_size])
             self.h_label_head = tf.reshape(
-                self.h_label_head, [batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_head, [batch_size, -1, self.mlp_out_size])
             self.h_label_dep = tf.reshape(
-                self.h_label_dep, [batch_size, -1, self.hparams.label_mlp_units])
+                self.h_label_dep, [batch_size, -1, self.mlp_out_size])
+            # self.h_label_head2 = tf.reshape(
+            #     self.h_label_head2, [batch_size, -1, self.hparams.arc_mlp_units])
 
     def create_biaffine_layer(self):
         """ adding arc and label logits """
         # logit for arc and label
         with tf.variable_scope('arc'):
-            W_arc = tf.get_variable('w_arc', [self.hparams.arc_mlp_units + 1, 1, self.hparams.arc_mlp_units],
+            W_arc = tf.get_variable('w_arc', [self.mlp_out_size + 1, 1, self.mlp_out_size],
                                     dtype=tf.float32, initializer=tf.orthogonal_initializer)
-            self.arc_logits = add_biaffine_layer(
+            arc_logits = add_biaffine_layer(
                 self.h_arc_dep, W_arc, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
 
+            W_arc2 = tf.get_variable('w_arc2', [self.mlp_out_size + 1, 1, self.mlp_out_size],
+                                    dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            arc_logits2 = add_biaffine_layer(
+                self.h_label_head, W_arc2, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
+
+            self.arc_logits = tf.add(
+                tf.divide(arc_logits, 2),
+                tf.divide(arc_logits2, 2),
+                name='arc_logits')
+
         with tf.variable_scope('label'):
-            W_label = tf.get_variable('w_label', [self.hparams.label_mlp_units + 1, self.n_classes,
-                                                  self.hparams.label_mlp_units + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
+            W_label = tf.get_variable('w_label', [self.mlp_out_size + 1, self.n_classes,
+                                                  self.mlp_out_size + 1], dtype=tf.float32, initializer=tf.orthogonal_initializer)
             full_label_logits = add_biaffine_layer(self.h_label_dep, W_label, self.h_label_head,
                                                    self.hparams.device, num_outputs=self.n_classes, bias_x=True, bias_y=True)  # [batch,seq_length,heads,label_classes]
 
@@ -242,7 +255,7 @@ class Model(object):
             # [[batch_idx, seq_idx, head_idx], ...]
             indices = tf.stack([batch_idx, seq_idx, pred_arcs], 2)
             self.label_logits = tf.gather_nd(
-                full_label_logits, indices=indices)
+                full_label_logits, indices=indices, name='label_logits')
 
     # compute loss
     def compute_loss(self, logits, gold_labels, sequence_length):
@@ -342,12 +355,17 @@ class Model(object):
         sentences_indexed = sentences_indexed[:, :, :max_word_len]
         pos_indexed = pos_indexed[:, :, :max_word_len]
 
+        char_length = utils.get_word_length(chars_indexed, self.char_pad_id)
+        max_char_len = utils.get_max(char_length)
+        chars_indexed = chars_indexed[:, :, :max_char_len]
+
         feed_dict = {
             self.word_ids: sentences_indexed,
             self.char_ids: chars_indexed,
             self.pos_ids: pos_indexed,
             self.sequence_length: sequence_length,
             self.word_length: word_length,
+            self.char_length: char_length,
         }
 
         if self.mode == tf.contrib.learn.ModeKeys.TRAIN:
@@ -420,11 +438,11 @@ def add_stacked_lstm_layers(hparams, word_embedding, lengths, dropout):
 def create_weight_and_bias(n_input, n_output):
     weights = {
         'w1': tf.get_variable('w1', shape=[n_input, n_output], dtype=tf.float32),
-        'w2': tf.get_variable('w2', shape=[n_output, n_output], dtype=tf.float32)
+        'w2': tf.get_variable('w2', shape=[n_output, 500], dtype=tf.float32)
     }
     biases = {
         'b1': tf.get_variable('b1', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer()),
-        'b2': tf.get_variable('b2', shape=[n_output], dtype=tf.float32, initializer=tf.zeros_initializer())
+        'b2': tf.get_variable('b2', shape=[500], dtype=tf.float32, initializer=tf.zeros_initializer())
     }
     return weights, biases
 
@@ -437,6 +455,7 @@ def multilayer_perceptron(x, weights, biases, dropout):
         keep_prob = 1.0 - dropout
         out_layer = tf.nn.dropout(out_layer, keep_prob)
     return out_layer
+
 
 def mlp_with_scope(x, n_input, n_output, dropout, scope):
     with tf.variable_scope(scope):
