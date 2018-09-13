@@ -223,10 +223,7 @@ class Model(object):
             arc_logits2 = add_biaffine_layer(
                 self.h_label_head, W_arc2, self.h_arc_head, self.hparams.device, num_outputs=1, bias_x=True, bias_y=False)
 
-            self.arc_logits = tf.add(
-                tf.divide(arc_logits, 2),
-                tf.divide(arc_logits2, 2),
-                name='arc_logits')
+            self.arc_logits = tf.add(arc_logits, arc_logits2, name='arc_logits')
 
         with tf.variable_scope('label'):
             W_label = tf.get_variable('w_label', [self.mlp_out_size + 1, self.n_classes,
