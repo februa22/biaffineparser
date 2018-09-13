@@ -519,6 +519,8 @@ def add_biaffine_layer(input1, W, input2, device, num_outputs=1, bias_x=False, b
         blin = tf.squeeze(blin, axis=2)
     else:
         blin = tf.transpose(blin, perm=[0, 1, 3, 2])
+
+    blin = tf.nn.dropout(blin, 1 - 0.33)
     return blin
 
 
