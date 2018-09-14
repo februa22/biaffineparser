@@ -4,9 +4,9 @@
 ############## START ###################
 train_filename=data/sejong.char.train.csv # Path of train dataset.
 dev_filename=data/sejong.char.test.csv # Path of dev dataset.
-out_dir=parser/model_iss72-2 # Store log/model files.
+out_dir=parser/model_iss76 # Store log/model files.
 word_embed_file=embeddings/words.pos.original.vec  # Use the pre-trained embedding. If not provided, use random values.
-pos_embed_file=embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
+pos_embed_file= #embeddings/words.tag.original.vec  # Use the pre-trained embedding. If not provided, use random values.
 char_embed_file= #new
 word_embed_size=200  # The embedding dimension for the word's embedding.
 pos_embed_size=100  # The embedding dimension for the tag's embedding.
@@ -14,7 +14,7 @@ char_embed_size=200
 embed_dropout=0.33
 num_train_epochs=50 # Num epochs to train.
 batch_size=128  # Batch size.
-inference_input_file=data/sejong.char.train.csv
+inference_input_file= #data/sejong.char.train.csv
 inference_output_file=${out_dir}/sejong.char.train.inference.tsv
 device=gpu # device to use
 debug=false # use debug mode
@@ -26,7 +26,7 @@ num_lstm_layers=4
 
 [ -d foo ] || mkdir ${out_dir}
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=3
 echo CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
 
 python -m parser.parser \
