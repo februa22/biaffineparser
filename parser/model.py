@@ -359,7 +359,7 @@ class Model(object):
             value=[tf.Summary.Value(tag=tag, simple_value=value)])
         self.summary_writer.add_summary(summary, global_step)
 
-    def _run_session(self, sentences_indexed, chars_indexed, pos_indexed,
+    def _run_session(self, sentences_indexed, chars_indexed, pos_indexed, morphs_indexed,
                      heads_indexed=None, rels_indexed=None):
         self.embed_dropout = self.hparams.embed_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
         self.lstm_dropout = self.hparams.lstm_dropout if self.mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
@@ -372,6 +372,7 @@ class Model(object):
         sentences_indexed = sentences_indexed[:, :max_seq_len, :]
         chars_indexed = chars_indexed[:, :max_seq_len]
         pos_indexed = pos_indexed[:, :max_seq_len, :]
+        morphs_indexed = morphs_indexed[:, :max_seq_len, :]
 
         if heads_indexed is not None:
             heads_indexed = heads_indexed[:, :max_seq_len]
@@ -383,6 +384,7 @@ class Model(object):
         max_word_len = utils.get_max(word_length)
         sentences_indexed = sentences_indexed[:, :, :max_word_len]
         pos_indexed = pos_indexed[:, :, :max_word_len]
+        morphs_indexed = morphs_indexed[:, :, :max_word_len]
 
         char_length = utils.get_word_length(chars_indexed, self.char_pad_id)
         max_char_len = utils.get_max(char_length)
@@ -392,6 +394,7 @@ class Model(object):
             self.word_ids: sentences_indexed,
             self.char_ids: chars_indexed,
             self.pos_ids: pos_indexed,
+            self.morphs_ids: morphs_indexed,
             self.sequence_length: sequence_length,
             self.word_length: word_length,
             self.char_length: char_length,
@@ -419,15 +422,15 @@ class Model(object):
     def train_step(self, data):
         self.mode = self.train_mode
         (sentences_indexed, chars_indexed,
-         pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
+         pos_indexed, morphs_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed, morphs_indexed,
                                  heads_indexed, rels_indexed)
 
     def eval_step(self, data):
         self.mode = self.eval_mode
         (sentences_indexed, chars_indexed,
-         pos_indexed, heads_indexed, rels_indexed) = data
-        return self._run_session(sentences_indexed, chars_indexed, pos_indexed,
+         pos_indexed, morphs_indexed, heads_indexed, rels_indexed) = data
+        return self._run_session(sentences_indexed, chars_indexed, pos_indexed, morphs_indexed,
                                  heads_indexed, rels_indexed)
 
     def inference_step(self, data):

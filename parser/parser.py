@@ -127,17 +127,17 @@ def str2bool(v):
 
 
 def evaluate(model, data, batch_size):
-    (val_sentences_indexed, val_chars_indexed, val_pos_indexed,
+    (val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_morphs_indexed,
      val_rels_indexed, val_heads_padded) = data
     total_eval_loss, total_eval_uas, total_eval_las = [], [], []
     total_head_preds, total_rel_preds = [], []
     lengths = []
     # iterate over the dev-set
-    for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-            val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded,
+    for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, morphs_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
+            val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_morphs_indexed, val_rels_indexed, val_heads_padded,
             batch_size=batch_size):
         batch_data = (sentences_indexed_batch, chars_indexed_batch,
-                      pos_indexed_batch, heads_indexed_batch, rels_indexed_batch)
+                      pos_indexed_batch, morphs_indexed_batch, heads_indexed_batch, rels_indexed_batch)
         result = model.eval_step(batch_data)
 
         (eval_loss, eval_uas, eval_las, head_preds,
