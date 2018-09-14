@@ -36,6 +36,8 @@ def add_arguments(parser):
                         help="The embedding dimension for the char's embedding.")                    
     parser.add_argument('--pos_embed_size', type=int, default=100,
                         help="The embedding dimension for the POS's embedding.")
+    parser.add_argument('--morph_embed_size', type=int, default=100,
+                        help="The embedding dimension for the Morpheme's embedding.")
 
     # optimizer
     parser.add_argument("--optimizer", type=str, default="adam",
@@ -61,6 +63,8 @@ def add_arguments(parser):
                         help="Vocab name of chars.")
     parser.add_argument("--pos_vocab_name", type=str, default='pos.pkl',
                         help="Vocab name of pos.")
+    parser.add_argument("--morph_vocab_name", type=str, default='morph.pkl',
+                        help="Vocab name of morphemes.")
     parser.add_argument("--rel_vocab_name", type=str, default='rel.pkl',
                         help="Vocab name of rels.")
     parser.add_argument("--head_vocab_name", type=str, default='head.pkl',
@@ -73,6 +77,9 @@ def add_arguments(parser):
                         help="Use the pre-trained embedding. \
                         If not provided, use random values.")
     parser.add_argument("--pos_embed_file", type=str, default=None,
+                        help="Use the pre-trained embedding. \
+                        If not provided, use random values.")
+    parser.add_argument("--morph_embed_file", type=str, default=None,
                         help="Use the pre-trained embedding. \
                         If not provided, use random values.")
     parser.add_argument("--word_embed_matrix_file", type=str, default=None,
@@ -173,16 +180,19 @@ def train(flags, log_f=None):
     (sentences_indexed,  # (12543, 160)
         chars_indexed,
         pos_indexed,  # (12543, 160)
+        morphs_indexed,
         heads_padded,   # (12543, 160)
         rels_indexed,   # (12543, 160)
         words_dict,  # 400005
         chars_dict,
         pos_features_dict,  # 20
+        morphs_dict,
         heads_features_dict,  # 132
         rels_features_dict,  # 53
         word_embedding,  # (400005, 100)
         chars_embedding,
         pos_embedding,  # (20, 100)
+        morphs_embedding,
         maxlen  # 160
      ) = utils.load_dataset(flags.train_filename, flags)
 
@@ -210,7 +220,7 @@ def train(flags, log_f=None):
             utils.print_out(f'heads {h}', log_f)
 
     # embed vadliation(dev) dataset
-    val_sentences, val_chars, val_pos, val_rels, val_heads, val_maxlen, val_maxwordlen, val_maxcharlen = utils.get_dataset_multiindex(
+    val_sentences, val_chars, val_pos, val_morphs, val_rels, val_heads, val_maxlen, val_maxwordlen, val_maxcharlen = utils.get_dataset_multiindex(
         flags.dev_filename)
 
     val_sentences_indexed = utils.get_indexed_sequences(
@@ -219,13 +229,15 @@ def train(flags, log_f=None):
         val_chars, chars_dict, val_maxlen, maxwordl=val_maxcharlen, split_word=True)
     val_pos_indexed = utils.get_indexed_sequences(
         val_pos, pos_features_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
+    val_morphs_indexed = utils.get_indexed_sequences(
+        val_morphs, morphs_dict, val_maxlen, maxwordl=val_maxwordlen, split_word=True)
     val_rels_indexed = utils.get_indexed_sequences(
         val_rels, rels_features_dict, val_maxlen)
     val_heads_padded = utils.get_indexed_sequences(
         val_heads, heads_features_dict, val_maxlen, just_pad=True)
     #pdb.set_trace()
     
-    dev_data = (val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_rels_indexed, val_heads_padded)
+    dev_data = (val_sentences_indexed, val_chars_indexed, val_pos_indexed, val_morphs_indexed, val_rels_indexed, val_heads_padded)
 
 
     best_eval_uas = .0
@@ -236,11 +248,13 @@ def train(flags, log_f=None):
         words_dict,
         chars_dict,
         pos_features_dict,
+        morphs_dict,
         rels_features_dict,
         heads_features_dict,
         word_embedding,
         chars_embedding,
-        pos_embedding)
+        pos_embedding,
+        morphs_embedding)
     model.build()
 
     utils.save_vocab(words_dict, os.path.join(
@@ -249,6 +263,8 @@ def train(flags, log_f=None):
         flags.out_dir, flags.char_vocab_name))
     utils.save_vocab(pos_features_dict, os.path.join(
         flags.out_dir, flags.pos_vocab_name))
+    utils.save_vocab(morphs_dict, os.path.join(
+        flags.out_dir, flags.morph_vocab_name))
     utils.save_vocab(rels_features_dict, os.path.join(
         flags.out_dir, flags.rel_vocab_name))
     utils.save_vocab(heads_features_dict, os.path.join(
@@ -264,13 +280,13 @@ def train(flags, log_f=None):
         epoch += 1
         # reset progbar each epoch
         progbar = Progbar(len(sentences_indexed))
-        sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded = shuffle(
-            sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded, random_state=0)
+        sentences_indexed, chars_indexed, pos_indexed, morphs_indexed, rels_indexed, heads_padded = shuffle(
+            sentences_indexed, chars_indexed, pos_indexed, morphs_indexed, rels_indexed, heads_padded, random_state=0)
 
         # iterate over the train-set
-        for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
-                sentences_indexed, chars_indexed, pos_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
-            batch_data = (sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch,
+        for sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, morphs_indexed_batch, rels_indexed_batch, heads_indexed_batch in utils.get_batch(
+                sentences_indexed, chars_indexed, pos_indexed, morphs_indexed, rels_indexed, heads_padded, batch_size=flags.batch_size):
+            batch_data = (sentences_indexed_batch, chars_indexed_batch, pos_indexed_batch, morphs_indexed_batch,
                           heads_indexed_batch, rels_indexed_batch)
             _, loss, uas, las, global_step = model.train_step(batch_data)
 

@@ -7,8 +7,8 @@ from tensorflow.python import debug as tf_debug
 from . import utils
 
 class Model(object):
-    def __init__(self, hparams, word_vocab_table, char_vocab_table, pos_vocab_table,
-                 rels_vocab_table, heads_vocab_table, word_embedding, char_embedding, pos_embedding):
+    def __init__(self, hparams, word_vocab_table, char_vocab_table, pos_vocab_table, morph_vocab_table,
+                 rels_vocab_table, heads_vocab_table, word_embedding, char_embedding, pos_embedding, morph_embedding):
         print('#'*30)
         print(f'word_vocab_table: {len(word_vocab_table)}')
         print(f'char_vocab_table: {len(char_vocab_table)}')
@@ -22,17 +22,20 @@ class Model(object):
         self.word_vocab_table = word_vocab_table
         self.char_vocab_table = char_vocab_table
         self.pos_vocab_table = pos_vocab_table
+        self.morph_vocab_table = morph_vocab_table
         self.rels_vocab_table = rels_vocab_table
         self.heads_vocab_table = heads_vocab_table
         self.word_embedding = word_embedding
         self.char_embedding = char_embedding
         self.pos_embedding = pos_embedding
+        self.morph_embedding = morph_embedding
 
         self.hparams = hparams
         self.n_classes = len(rels_vocab_table)
 
         self.word_pad_id = word_vocab_table[utils.GLOBAL_PAD_SYMBOL]
         self.char_pad_id = char_vocab_table[utils.GLOBAL_PAD_SYMBOL]
+        self.morph_pad_id = morph_vocab_table[utils.GLOBAL_PAD_SYMBOL]
         self.head_pad_id = tf.constant(
             heads_vocab_table[utils.GLOBAL_PAD_SYMBOL])
         self.rel_pad_id = tf.constant(
@@ -99,6 +102,8 @@ class Model(object):
         # NNP
         self.pos_ids = tf.placeholder(
             tf.int32, shape=[None, None, None], name='pos_ids')
+        self.morph_ids = tf.placeholder(
+            tf.int32, shape=[None, None, None], name='morph_ids')
 
         self.head_ids = tf.placeholder(
             tf.int32, shape=[None, None], name='head_ids')
@@ -115,6 +120,7 @@ class Model(object):
         with tf.device('/cpu:0'), tf.variable_scope('embeddings'):
             # get word length
             sequence_length = tf.reshape(self.word_length, [-1])
+            shape = tf.shape(self.word_ids)
 
             with tf.variable_scope('word'):
                 trainable = False if self.hparams.word_embed_file else True
@@ -123,6 +129,25 @@ class Model(object):
                     name="_word_embedding", dtype=tf.float32)
                 word_embedding = tf.nn.embedding_lookup(
                     _word_embedding, self.word_ids, name="word_embedding")
+                dim = self.hparams.word_embed_size
+                word_embedding = tf.reshape(
+                    word_embedding, [-1, shape[2], dim])
+                word_embedding = bilstm_layer(
+                    word_embedding, sequence_length,
+                    int(dim / 2))
+                word_embedding = tf.reshape(
+                    word_embedding, [-1, shape[1], dim])
+                if self.embed_dropout > 0.0:
+                    keep_prob = 1.0 - self.embed_dropout
+                    word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+
+            with tf.variable_scope('morph'):
+                trainable = False if self.hparams.morph_embed_file else True
+                _morph_embedding = tf.Variable(
+                    self.morph_embedding, trainable=trainable,
+                    name="_morph_embedding", dtype=tf.float32)
+                morph_embedding = tf.nn.embedding_lookup(
+                    _morph_embedding, self.morph_ids, name="morph_embedding")
 
             with tf.variable_scope('pos'):
                 trainable = False if self.hparams.pos_embed_file else True
@@ -132,19 +157,18 @@ class Model(object):
                 pos_embedding = tf.nn.embedding_lookup(
                     _pos_embedding, self.pos_ids, name="pos_embedding")
 
-            word_embedding = tf.concat([word_embedding, pos_embedding], axis=-1)
-            shape = tf.shape(self.word_ids)
-            dim = self.hparams.word_embed_size + self.hparams.pos_embed_size
-            word_embedding = tf.reshape(
-                word_embedding, [-1, shape[2], dim])
-            word_embedding = bilstm_layer(
-                word_embedding, sequence_length,
+            morph_embedding = tf.concat([morph_embedding, pos_embedding], axis=-1)
+            dim = self.hparams.morph_embed_size + self.hparams.pos_embed_size
+            morph_embedding = tf.reshape(
+                morph_embedding, [-1, shape[2], dim])
+            morph_embedding = bilstm_layer(
+                morph_embedding, sequence_length,
                 int(dim / 2))
-            word_embedding = tf.reshape(
-                word_embedding, [-1, shape[1], dim])
+            morph_embedding = tf.reshape(
+                morph_embedding, [-1, shape[1], dim])
             if self.embed_dropout > 0.0:
                 keep_prob = 1.0 - self.embed_dropout
-                word_embedding = tf.nn.dropout(word_embedding, keep_prob)
+                morph_embedding = tf.nn.dropout(morph_embedding, keep_prob)
 
             with tf.variable_scope('char'):
                 trainable = False if self.hparams.char_embed_file else True
@@ -177,7 +201,7 @@ class Model(object):
 
             # concat
             self.embeddings = tf.concat(
-                [word_embedding, char_embedding], axis=-1)
+                [word_embedding, morph_embedding, char_embedding], axis=-1)
 
     def create_lstm_layer(self):
         with tf.variable_scope('bi-lstm'):
