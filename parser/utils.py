@@ -110,7 +110,7 @@ def load_dataset(filepath, flags):
 
     #사전을 늘리기 위해 평가데이터도 추가
     _, words_dict, words_embeddings_matrix = initialize_embed_features(
-        sentences + val_sentences, flags.word_embed_size, maxlen, split_word=True, starti=0)
+        sentences + val_sentences, flags.word_embed_size, maxlen, split_word=True, starti=0, normalize=True)
 
     #사전을 늘리기 위해 평가데이터도 추가
     _, chars_dict, chars_embedding_matrix = initialize_embed_features(
@@ -254,7 +254,7 @@ def get_indexed_sequences(sequences: list, vocab: dict, maxl: int, just_pad=Fals
     return indexed_sequences
 
 
-def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True, split_word: bool=False):
+def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0, return_embeddings: bool=True, split_word: bool=False, normalize: bool=False):
     """
     Takes a list of sequences, for example sentences, pos tags or relations.
     Initialize a dict and the random embedding matrix to train
@@ -271,6 +271,8 @@ def initialize_embed_features(features: list, dim: int, maxl: int, starti: int=0
             # 어절을 잘라야할 경우
             if split_word:
                 for word in str(f).strip().split('|'):
+                    if normalize:
+                        word = normalize_word(word)
                     if features_dict.get(word, None) is None:
                         features_dict[word] = i
                         i += 1
